@@ -1,0 +1,93 @@
+{
+  "doc_number": [
+    "Doc No",
+    "Document Number",
+    "Doc #",
+    "ID",
+    "Document No",
+    "DocNo",
+    "Doc Number"
+  ],
+  "title": [
+    "Document Title",
+    "Title",
+    "Description",
+    "Doc Title",
+    "Name"
+  ],
+  "discipline": [
+    "Discipline",
+    "Disc",
+    "Department"
+  ],
+  "project": [
+    "Project",
+    "Project Name",
+    "Project Title"
+  ],
+  "phase": [
+    "Phase",
+    "Stage",
+    "Document Phase"
+  ],
+  "status": [
+    "Status",
+    "Doc Status",
+    "Current Status",
+    "Document Status"
+  ],
+  "planned_start": [
+    "Planned Start",
+    "Start Date",
+    "Plan Start",
+    "Scheduled Start"
+  ],
+  "planned_end": [
+    "Planned End",
+    "End Date",
+    "Target Date",
+    "Due Date",
+    "Plan End",
+    "Planned Finish"
+  ],
+  "actual_start": [
+    "Actual Start",
+    "Act Start"
+  ],
+  "actual_end": [
+    "Actual End",
+    "Actual Finish",
+    "Completion Date"
+  ],
+  "ifr_date": [
+    "IFR Date",
+    "Issued For Review",
+    "IFR",
+    "IFR Submission"
+  ],
+  "afc_date": [
+    "AFC Date",
+    "Approved For Construction",
+    "AFC",
+    "AFC Approval"
+  ],
+  "revision": [
+    "Revision",
+    "Rev",
+    "Rev No"
+  ],
+  "owner": [
+    "Owner",
+    "Responsible",
+    "Assigned To",
+    "Engineer",
+    "Lead"
+  ],
+  "completion_pct": [
+    "% Complete",
+    "Completion %",
+    "Progress",
+    "% Done",
+    "Percent Complete"
+  ]
+}

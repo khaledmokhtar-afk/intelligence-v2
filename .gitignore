@@ -3,5 +3,8 @@ client/node_modules/
 client/dist/
 data/uploads/
 data/mdr.db
+data/mdr.db-shm
+data/mdr.db-wal
+data/app_config.json
 .env
 *.log
