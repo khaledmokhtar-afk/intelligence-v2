@@ -1,8 +1,18 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const crypto = require('crypto');
 const { getDB } = require('../db/database');
+const { loadConfig } = require('../routes/settings');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getApiKey() {
+  const cfg = loadConfig();
+  return cfg.anthropicApiKey || process.env.ANTHROPIC_API_KEY || null;
+}
+
+function getClient() {
+  const key = getApiKey();
+  if (!key) return null;
+  return new Anthropic({ apiKey: key });
+}
 
 function hashContext(data) {
   return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
@@ -26,8 +36,9 @@ function saveAnalysis(type, contextHash, result, model) {
 }
 
 async function analyzePortfolio(metrics, forceRefresh = false) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return 'AI analysis unavailable — set ANTHROPIC_API_KEY environment variable to enable.';
+  const client = getClient();
+  if (!client) {
+    return 'AI analysis unavailable — add your Anthropic API key in Settings (top-right gear icon).';
   }
   const contextHash = hashContext(metrics);
   if (!forceRefresh) {
@@ -66,8 +77,9 @@ Be specific, concise, and actionable. No bullet points — flowing prose.`;
 }
 
 async function analyzeRisks(lateItems, atRiskItems, forceRefresh = false) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return 'AI analysis unavailable — set ANTHROPIC_API_KEY environment variable to enable.';
+  const client = getClient();
+  if (!client) {
+    return 'AI analysis unavailable — add your Anthropic API key in Settings (top-right gear icon).';
   }
   const contextHash = hashContext({ lateItems: lateItems.slice(0,20), atRiskItems: atRiskItems.slice(0,20) });
   if (!forceRefresh) {

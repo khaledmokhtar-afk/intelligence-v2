@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, AlertTriangle, Users, List, Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, Calendar, AlertTriangle, Users, List, Upload, X, CheckCircle, AlertCircle, Settings, Eye, EyeOff, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import Dashboard from './views/Dashboard';
 import ThisWeek from './views/ThisWeek';
@@ -114,8 +114,118 @@ function UploadModal({ onClose, onSuccess }) {
   );
 }
 
+function SettingsModal({ onClose }) {
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [status, setStatus] = useState(null); // { type: 'success'|'error', msg }
+  const [existing, setExisting] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    axios.get('/api/settings').then(r => setExisting(r.data)).catch(() => {});
+  }, []);
+
+  const save = async () => {
+    if (!apiKey.trim()) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      await axios.post('/api/settings', { anthropicApiKey: apiKey.trim() });
+      setStatus({ type: 'success', msg: 'API key saved. AI features are now enabled.' });
+      setApiKey('');
+      const r = await axios.get('/api/settings');
+      setExisting(r.data);
+    } catch(e) {
+      setStatus({ type: 'error', msg: e.response?.data?.error || e.message });
+    }
+    setSaving(false);
+  };
+
+  const remove = async () => {
+    try {
+      await axios.delete('/api/settings/apikey');
+      setExisting({ hasApiKey: false, apiKeyPreview: null });
+      setStatus({ type: 'success', msg: 'API key removed.' });
+    } catch(e) {
+      setStatus({ type: 'error', msg: e.message });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-lg font-semibold flex items-center gap-2"><Settings size={18}/> Settings</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+        </div>
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Anthropic API Key</label>
+            <p className="text-xs text-gray-400 mb-3">
+              Powers AI analysis on the Dashboard and Issues views. Get your key at{' '}
+              <span className="font-mono text-gray-500">console.anthropic.com</span>.
+            </p>
+
+            {existing?.hasApiKey && (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">
+                <div>
+                  <span className="text-xs text-green-700 font-medium">Key active</span>
+                  <span className="text-xs text-green-600 ml-2">{existing.apiKeyPreview}</span>
+                </div>
+                {existing.apiKeySource === 'app' && (
+                  <button onClick={remove} className="text-red-400 hover:text-red-600 ml-2" title="Remove key">
+                    <Trash2 size={14}/>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                className="w-full border rounded-lg px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="sk-ant-api03-..."
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && save()}
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showKey ? <EyeOff size={16}/> : <Eye size={16}/>}
+              </button>
+            </div>
+          </div>
+
+          {status && (
+            <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${status.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+              {status.type === 'success' ? <CheckCircle size={15} className="mt-0.5 shrink-0"/> : <AlertCircle size={15} className="mt-0.5 shrink-0"/>}
+              {status.msg}
+            </div>
+          )}
+
+          <button
+            onClick={save}
+            disabled={!apiKey.trim() || saving}
+            className="w-full bg-sky-600 text-white py-2 rounded-lg hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          >
+            {saving ? 'Saving...' : 'Save API Key'}
+          </button>
+
+          <p className="text-xs text-gray-400 text-center">
+            The key is stored in <span className="font-mono">data/app_config.json</span> on the server — never sent to the browser after saving.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [showUpload, setShowUpload] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
@@ -134,9 +244,14 @@ export default function App() {
               </NavLink>
             ))}
           </nav>
-          <button onClick={() => setShowUpload(true)} className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 text-sm font-medium">
-            <Upload size={16}/> Upload MDR
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowSettings(true)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="Settings">
+              <Settings size={18}/>
+            </button>
+            <button onClick={() => setShowUpload(true)} className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 text-sm font-medium">
+              <Upload size={16}/> Upload MDR
+            </button>
+          </div>
         </div>
       </header>
 
@@ -156,6 +271,7 @@ export default function App() {
           onSuccess={() => { setRefreshKey(k => k+1); }}
         />
       )}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)}/>}
     </div>
   );
 }

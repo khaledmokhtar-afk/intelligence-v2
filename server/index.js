@@ -10,6 +10,7 @@ const issuesRoute = require('./routes/issues');
 const deliverablesRoute = require('./routes/deliverables');
 const matrixRoute = require('./routes/matrix');
 const analyzeRoute = require('./routes/analyze');
+const { router: settingsRoute } = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -25,6 +26,7 @@ app.use('/api/issues', issuesRoute);
 app.use('/api/deliverables', deliverablesRoute);
 app.use('/api/matrix', matrixRoute);
 app.use('/api/analyze', analyzeRoute);
+app.use('/api/settings', settingsRoute);
 
 // Serve built frontend
 const clientDist = path.join(__dirname, '../client/dist');
