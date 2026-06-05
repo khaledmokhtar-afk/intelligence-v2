@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: mdr-intelligence
+    runtime: docker
+    plan: free
+    envVars:
+      - key: PORT
+        value: 3001
+    disk:
+      name: data
+      mountPath: /app/data
+      sizeGB: 1
