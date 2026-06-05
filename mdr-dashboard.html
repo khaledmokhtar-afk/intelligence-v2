@@ -3,941 +3,1491 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MDR Dashboard</title>
+<title>MDR Intelligence Dashboard</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f9ff; color: #1e293b; min-height: 100vh; }
+/* ── Reset & Base ─────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#263347;--border:#334155;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--accent2:#818cf8;
+  --green:#4ade80;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;
+  --green-bg:rgba(74,222,128,.12);--yellow-bg:rgba(251,191,36,.12);
+  --red-bg:rgba(248,113,113,.12);--blue-bg:rgba(56,189,248,.12);
+  --radius:12px;--shadow:0 4px 24px rgba(0,0,0,.4);
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
 
-  /* Header */
-  #app-header {
-    background: #0c4a6e;
-    color: #fff;
-    padding: 0 24px;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    height: 56px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  }
-  #app-header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
-  #tab-nav { display: flex; gap: 2px; flex: 1; }
-  .tab-btn {
-    background: transparent;
-    border: none;
-    color: #bae6fd;
-    padding: 8px 16px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    border-radius: 6px;
-    transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
-  }
-  .tab-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
-  .tab-btn.active { background: #0ea5e9; color: #fff; }
-  #upload-btn-small {
-    background: #0ea5e9;
-    color: #fff;
-    border: none;
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-    white-space: nowrap;
-    font-weight: 500;
-  }
-  #upload-btn-small:hover { background: #0284c7; }
-  #file-input { display: none; }
+/* ── Layout ───────────────────────────────────────────────────────── */
+#shell{display:grid;grid-template-rows:56px 1fr;height:100vh}
+#sidebar{
+  position:fixed;top:56px;left:0;bottom:0;width:220px;
+  background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;gap:4px;padding:16px 10px;
+  z-index:50;overflow-y:auto;
+}
+#content{margin-left:220px;margin-top:56px;height:calc(100vh - 56px);overflow-y:auto;padding:24px}
 
-  /* Main content */
-  #main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+/* ── Header ───────────────────────────────────────────────────────── */
+#header{
+  position:fixed;top:0;left:0;right:0;height:56px;z-index:100;
+  background:linear-gradient(90deg,#0c4a6e 0%,#1e3a5f 100%);
+  border-bottom:1px solid rgba(56,189,248,.2);
+  display:flex;align-items:center;padding:0 20px;gap:16px;
+  box-shadow:0 2px 20px rgba(0,0,0,.5);
+}
+#header-logo{display:flex;align-items:center;gap:10px;color:#fff;font-size:17px;font-weight:700;white-space:nowrap}
+#header-logo svg{color:var(--accent)}
+#header-file{font-size:12px;color:#7dd3fc;opacity:.8;flex:1}
+#header-actions{display:flex;gap:8px;align-items:center}
+.header-btn{
+  background:rgba(56,189,248,.15);color:#7dd3fc;border:1px solid rgba(56,189,248,.3);
+  padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;
+  transition:all .15s;white-space:nowrap;font-weight:500;
+}
+.header-btn:hover{background:rgba(56,189,248,.3);color:#fff}
+.header-btn.primary{background:var(--accent);color:#0c4a6e;border-color:var(--accent)}
+.header-btn.primary:hover{background:#7dd3fc}
+#file-input{display:none}
 
-  /* Upload area */
-  #upload-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 56px);
-    gap: 16px;
-  }
-  #drop-zone {
-    border: 2px dashed #0ea5e9;
-    border-radius: 16px;
-    padding: 64px 80px;
-    text-align: center;
-    background: #fff;
-    cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
-    max-width: 500px;
-    width: 100%;
-  }
-  #drop-zone:hover, #drop-zone.drag-over { background: #e0f2fe; border-color: #0284c7; }
-  #drop-zone svg { color: #0ea5e9; margin-bottom: 12px; }
-  #drop-zone h2 { font-size: 20px; font-weight: 600; color: #0c4a6e; margin-bottom: 8px; }
-  #drop-zone p { color: #64748b; font-size: 14px; margin-bottom: 16px; }
-  #drop-zone-btn {
-    background: #0ea5e9;
-    color: #fff;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 8px;
-    font-size: 14px;
-    cursor: pointer;
-    font-weight: 500;
-  }
-  #drop-zone-btn:hover { background: #0284c7; }
+/* ── Sidebar Nav ──────────────────────────────────────────────────── */
+.nav-section{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--muted);padding:8px 8px 4px}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;
+  border-radius:8px;border:none;background:transparent;color:var(--muted);
+  cursor:pointer;font-size:13px;font-weight:500;width:100%;text-align:left;
+  transition:all .15s;
+}
+.nav-btn:hover{background:var(--surface2);color:var(--text)}
+.nav-btn.active{background:linear-gradient(90deg,rgba(56,189,248,.2),rgba(56,189,248,.05));
+  color:var(--accent);border-left:3px solid var(--accent);padding-left:9px}
+.nav-btn svg{width:16px;height:16px;flex-shrink:0}
+.nav-badge{
+  margin-left:auto;background:var(--red-bg);color:var(--red);
+  font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;
+  border:1px solid rgba(248,113,113,.3);
+}
+.nav-badge.warn{background:var(--yellow-bg);color:var(--yellow);border-color:rgba(251,191,36,.3)}
 
-  /* Tabs content */
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
+/* ── Panels ───────────────────────────────────────────────────────── */
+.panel{display:none}
+.panel.active{display:block}
 
-  /* Metric cards */
-  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-  .metric-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px 24px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .metric-label { font-size: 13px; color: #64748b; font-weight: 500; }
-  .metric-value { font-size: 32px; font-weight: 700; color: #0c4a6e; line-height: 1.1; }
-  .metric-sub { font-size: 13px; color: #94a3b8; }
-  .metric-card.afc .metric-value { color: #16a34a; }
-  .metric-card.risk .metric-value { color: #d97706; }
-  .metric-card.overdue .metric-value { color: #dc2626; }
+/* ── Upload Screen ────────────────────────────────────────────────── */
+#upload-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:calc(100vh - 56px);
+}
+.upload-card{
+  background:var(--surface);border:2px dashed var(--border);border-radius:20px;
+  padding:64px 80px;text-align:center;max-width:520px;width:100%;
+  transition:all .2s;
+}
+.upload-card:hover,.upload-card.drag{border-color:var(--accent);background:rgba(56,189,248,.05)}
+.upload-icon{color:var(--accent);margin-bottom:20px}
+.upload-card h2{font-size:22px;font-weight:700;color:var(--text);margin-bottom:8px}
+.upload-card p{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.6}
+.upload-btn{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#0f172a;border:none;padding:12px 28px;border-radius:10px;
+  font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;
+}
+.upload-btn:hover{opacity:.9}
+.formats{display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.fmt-tag{background:var(--surface2);color:var(--muted);padding:3px 10px;
+  border-radius:6px;font-size:11px;border:1px solid var(--border)}
 
-  /* Charts row */
-  .charts-row { display: grid; grid-template-columns: 280px 1fr; gap: 16px; margin-bottom: 24px; }
-  .chart-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-  }
-  .card-title { font-size: 15px; font-weight: 600; color: #0c4a6e; margin-bottom: 16px; }
-  #donut-legend { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+/* ── Metric Cards ─────────────────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+.kpi{
+  background:var(--surface);border-radius:var(--radius);padding:18px 20px;
+  border:1px solid var(--border);position:relative;overflow:hidden;
+  transition:transform .15s;cursor:default;
+}
+.kpi:hover{transform:translateY(-2px)}
+.kpi::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--kpi-accent,var(--accent));
+}
+.kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--muted);margin-bottom:6px}
+.kpi-val{font-size:30px;font-weight:800;color:var(--kpi-accent,var(--text));
+  line-height:1;margin-bottom:4px}
+.kpi-sub{font-size:12px;color:var(--muted)}
+.kpi-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);
+  opacity:.1;font-size:42px}
+.kpi.green{--kpi-accent:var(--green)}
+.kpi.yellow{--kpi-accent:var(--yellow)}
+.kpi.red{--kpi-accent:var(--red)}
+.kpi.blue{--kpi-accent:var(--accent)}
+.kpi.purple{--kpi-accent:var(--accent2)}
 
-  /* Tables */
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  thead th {
-    background: #f8fafc;
-    color: #475569;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 10px 12px;
-    text-align: left;
-    border-bottom: 1px solid #e2e8f0;
-    white-space: nowrap;
-    user-select: none;
-  }
-  thead th.sortable { cursor: pointer; }
-  thead th.sortable:hover { background: #f1f5f9; }
-  thead th.sort-asc::after { content: ' ↑'; }
-  thead th.sort-desc::after { content: ' ↓'; }
-  tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
-  tbody tr:hover { background: #f8fafc; }
-  tbody td { padding: 10px 12px; color: #334155; }
-  .table-card {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    overflow: hidden;
-  }
-  .table-card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+/* ── Charts Row ───────────────────────────────────────────────────── */
+.charts-row{display:grid;grid-template-columns:260px 1fr 300px;gap:14px;margin-bottom:20px}
+.chart-card{background:var(--surface);border-radius:var(--radius);
+  border:1px solid var(--border);padding:18px;overflow:hidden}
+.card-title{font-size:13px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--muted);margin-bottom:14px}
 
-  /* Status badges */
-  .badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .badge-afc { background: #dcfce7; color: #15803d; }
-  .badge-ifr { background: #fef3c7; color: #92400e; }
-  .badge-not-started { background: #f1f5f9; color: #475569; }
-  .badge-overdue { background: #fee2e2; color: #b91c1c; }
-  .badge-late { background: #fee2e2; color: #b91c1c; font-size: 11px; }
-  .badge-risk { background: #fef3c7; color: #92400e; font-size: 11px; }
-  .badge-ok { background: #dcfce7; color: #15803d; }
+/* ── Donut ────────────────────────────────────────────────────────── */
+#donut-wrap{display:flex;justify-content:center;margin-bottom:14px}
+.donut-legend{display:flex;flex-direction:column;gap:8px}
+.dl-item{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.dl-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.dl-label{color:var(--muted);flex:1}
+.dl-val{font-weight:700;color:var(--text)}
 
-  /* Section title */
-  .section-title { font-size: 16px; font-weight: 600; color: #0c4a6e; margin-bottom: 12px; margin-top: 28px; }
+/* ── Bar Chart ────────────────────────────────────────────────────── */
+.bar-chart{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:220px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.bar-name{font-size:11px;color:var(--muted);width:90px;text-align:right;flex-shrink:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:18px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px}
+.bar-fill span{font-size:10px;font-weight:700;color:#0f172a;white-space:nowrap}
+.bar-num{font-size:11px;font-weight:600;color:var(--text);width:32px;text-align:right}
 
-  /* Two-col layout for issues */
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* ── Upcoming Timeline ────────────────────────────────────────────── */
+.timeline-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:220px}
+.tl-item{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  background:var(--surface2);border-radius:8px;border:1px solid var(--border);
+}
+.tl-date{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;width:64px}
+.tl-info{flex:1;overflow:hidden}
+.tl-title{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-sub{font-size:11px;color:var(--muted)}
+.tl-badge{flex-shrink:0}
 
-  /* Filter row */
-  .filter-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; align-items: center; }
-  .filter-row select, .filter-row input {
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 13px;
-    color: #334155;
-    background: #fff;
-    outline: none;
-    min-width: 120px;
-  }
-  .filter-row select:focus, .filter-row input:focus { border-color: #0ea5e9; }
-  .filter-row input { flex: 1; min-width: 180px; }
-  .filter-label { font-size: 13px; color: #64748b; white-space: nowrap; }
+/* ── Tables ───────────────────────────────────────────────────────── */
+.tbl-card{background:var(--surface);border-radius:var(--radius);
+  border:1px solid var(--border);overflow:hidden}
+.tbl-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--border);
+}
+.tbl-title{font-size:14px;font-weight:700;color:var(--text)}
+.tbl-count{font-size:12px;color:var(--muted);background:var(--surface2);
+  padding:2px 10px;border-radius:999px;border:1px solid var(--border)}
+.tbl-wrap{overflow-x:auto;max-height:440px;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+thead{position:sticky;top:0;z-index:10}
+thead th{
+  background:var(--surface2);color:var(--muted);font-size:11px;
+  font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);
+  white-space:nowrap;user-select:none;
+}
+thead th.sort{cursor:pointer}
+thead th.sort:hover{color:var(--accent)}
+thead th.sort-asc::after{content:' ↑';color:var(--accent)}
+thead th.sort-desc::after{content:' ↓';color:var(--accent)}
+tbody tr{border-bottom:1px solid rgba(51,65,85,.5);transition:background .1s}
+tbody tr:hover{background:rgba(56,189,248,.04)}
+tbody tr.row-overdue{background:rgba(248,113,113,.05)}
+tbody tr.row-risk{background:rgba(251,191,36,.04)}
+tbody td{padding:9px 14px;color:var(--text);font-size:13px;vertical-align:middle}
+.empty-row td{text-align:center;padding:40px;color:var(--muted)}
 
-  /* Owner section */
-  .owner-section { margin-bottom: 20px; }
-  .owner-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: #e0f2fe;
-    border-radius: 8px 8px 0 0;
-    font-weight: 600;
-    color: #0c4a6e;
-  }
-  .owner-count { font-size: 13px; font-weight: 500; color: #0369a1; }
+/* ── Badges ───────────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;
+  border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-afc{background:rgba(74,222,128,.15);color:var(--green);border:1px solid rgba(74,222,128,.3)}
+.badge-ifr{background:rgba(251,191,36,.15);color:var(--yellow);border:1px solid rgba(251,191,36,.3)}
+.badge-ns{background:rgba(148,163,184,.1);color:var(--muted);border:1px solid var(--border)}
+.badge-overdue{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.badge-risk{background:rgba(251,191,36,.12);color:var(--yellow);border:1px solid rgba(251,191,36,.25)}
+.badge-ok{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.25)}
 
-  /* Empty state */
-  .empty-state { text-align: center; padding: 40px; color: #94a3b8; font-size: 14px; }
+/* ── Filter Bar ───────────────────────────────────────────────────── */
+.filter-bar{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);
+}
+.filter-bar input,.filter-bar select{
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:6px 12px;border-radius:8px;font-size:12px;outline:none;min-width:110px;
+  transition:border-color .15s;
+}
+.filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent)}
+.filter-bar input{flex:1;min-width:180px}
+.filter-bar select option{background:var(--surface)}
+.filter-bar label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 
-  /* Stuck in IFR */
-  .ifr-stuck-section { margin-top: 24px; }
+/* ── Two-Col ──────────────────────────────────────────────────────── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
 
-  /* Week section */
-  .carryover-section { margin-top: 24px; }
+/* ── Progress Bar ─────────────────────────────────────────────────── */
+.prog-track{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:6px}
+.prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--green));transition:width .6s}
 
-  /* Toast */
-  #toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: #1e293b;
-    color: #fff;
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    display: none;
-    z-index: 9999;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
+/* ── Responsibility Matrix ────────────────────────────────────────── */
+.matrix-toolbar{
+  display:flex;gap:10px;align-items:center;padding:14px 18px;
+  border-bottom:1px solid var(--border);background:var(--surface2);flex-wrap:wrap;
+}
+.matrix-toolbar input,.matrix-toolbar select{
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:7px 12px;border-radius:8px;font-size:12px;outline:none;
+}
+.matrix-toolbar input:focus,.matrix-toolbar select:focus{border-color:var(--accent)}
+.add-btn{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#0f172a;border:none;padding:7px 16px;border-radius:8px;
+  font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;
+}
+.add-btn:hover{opacity:.9}
+.del-btn{background:var(--red-bg);color:var(--red);border:1px solid rgba(248,113,113,.3);
+  padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600}
+.del-btn:hover{background:rgba(248,113,113,.25)}
+.edit-cell{
+  background:transparent;border:none;color:var(--text);font-size:13px;
+  width:100%;outline:none;cursor:text;padding:2px 4px;border-radius:4px;
+}
+.edit-cell:focus{background:var(--surface2);border:1px solid var(--accent)}
+.matrix-person{
+  display:flex;align-items:center;gap:8px;padding:4px 0;
+}
+.avatar{
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f172a;
+}
 
-  @media (max-width: 900px) {
-    .metrics-row { grid-template-columns: repeat(2, 1fr); }
-    .charts-row { grid-template-columns: 1fr; }
-    .two-col { grid-template-columns: 1fr; }
-    #tab-nav { overflow-x: auto; }
-  }
+/* ── Detail Modal ─────────────────────────────────────────────────── */
+#modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+#modal-overlay.open{display:flex}
+#modal{
+  background:var(--surface);border-radius:16px;border:1px solid var(--border);
+  width:100%;max-width:600px;max-height:80vh;overflow-y:auto;
+  box-shadow:var(--shadow);
+}
+#modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 22px;border-bottom:1px solid var(--border);
+}
+#modal-title{font-size:16px;font-weight:700;color:var(--text)}
+#modal-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:6px;transition:all .15s}
+#modal-close:hover{background:var(--surface2);color:var(--text)}
+#modal-body{padding:22px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.detail-item label{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:4px}
+.detail-item .val{font-size:14px;color:var(--text);font-weight:500}
+
+/* ── Toast ────────────────────────────────────────────────────────── */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:999;
+  background:#1e293b;color:#e2e8f0;padding:12px 20px;border-radius:10px;
+  font-size:13px;border:1px solid var(--border);box-shadow:var(--shadow);
+  display:none;animation:slideUp .2s ease;
+}
+@keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ── Column Mapper ────────────────────────────────────────────────── */
+#mapper-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+#mapper-overlay.open{display:flex}
+#mapper-card{
+  background:var(--surface);border-radius:16px;border:1px solid var(--border);
+  width:100%;max-width:680px;max-height:85vh;overflow-y:auto;
+}
+#mapper-card h2{padding:20px 24px;border-bottom:1px solid var(--border);
+  font-size:16px;font-weight:700;color:var(--text)}
+.mapper-body{padding:20px 24px}
+.mapper-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.mapper-field{display:flex;flex-direction:column;gap:6px}
+.mapper-field label{font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--muted)}
+.mapper-field select{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:8px 12px;border-radius:8px;font-size:13px;outline:none;
+}
+.mapper-field select:focus{border-color:var(--accent)}
+.mapper-field select option{background:var(--surface)}
+.mapper-actions{display:flex;gap:10px;justify-content:flex-end}
+.sec-btn{
+  background:var(--surface2);color:var(--text);border:1px solid var(--border);
+  padding:8px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;
+}
+.sec-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pri-btn{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#0f172a;border:none;padding:8px 20px;border-radius:8px;
+  font-size:13px;font-weight:700;cursor:pointer;
+}
+.pri-btn:hover{opacity:.9}
+
+/* ── Gantt ────────────────────────────────────────────────────────── */
+.gantt-wrap{overflow-x:auto;padding:0}
+.gantt-row{display:flex;align-items:center;border-bottom:1px solid rgba(51,65,85,.3)}
+.gantt-label{flex-shrink:0;width:220px;padding:6px 14px;font-size:12px;
+  color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gantt-track{flex:1;height:28px;position:relative;background:transparent;padding:4px 0}
+.gantt-bar{
+  position:absolute;height:20px;border-radius:4px;display:flex;
+  align-items:center;padding:0 6px;font-size:10px;font-weight:700;
+  overflow:hidden;white-space:nowrap;color:#0f172a;
+}
+.gantt-bar.afc{background:linear-gradient(90deg,var(--green),#22c55e)}
+.gantt-bar.ifr{background:linear-gradient(90deg,var(--yellow),#f59e0b)}
+.gantt-bar.ns{background:linear-gradient(90deg,#475569,#64748b);color:var(--muted)}
+.gantt-bar.overdue{background:linear-gradient(90deg,var(--red),#ef4444)}
+.gantt-header{display:flex;align-items:center;background:var(--surface2);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+.gantt-month{
+  flex:1;text-align:center;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+  padding:6px 0;border-right:1px solid var(--border);min-width:60px;
+}
+.today-line{
+  position:absolute;top:0;bottom:0;width:2px;background:rgba(248,113,113,.6);
+  z-index:4;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media(max-width:1100px){
+  #sidebar{display:none}
+  #content{margin-left:0}
+  .kpi-row{grid-template-columns:repeat(3,1fr)}
+  .charts-row{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .two-col{grid-template-columns:1fr}
+  .three-col{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
 
-<div id="app-header">
-  <h1>MDR Dashboard</h1>
-  <nav id="tab-nav">
-    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-    <button class="tab-btn" data-tab="thisweek">This Week</button>
-    <button class="tab-btn" data-tab="issues">Issues &amp; Risks</button>
-    <button class="tab-btn" data-tab="responsibility">Responsibility</button>
-    <button class="tab-btn" data-tab="all">All Deliverables</button>
-  </nav>
-  <button id="upload-btn-small" onclick="document.getElementById('file-input').click()">Upload Excel</button>
-  <input type="file" id="file-input" accept=".xlsx,.xls">
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════ -->
+<div id="header">
+  <div id="header-logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    MDR Intelligence
+  </div>
+  <div id="header-file"></div>
+  <div id="header-actions">
+    <button class="header-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="header-btn primary" onclick="document.getElementById('file-input').click()">⬆ Upload MDR</button>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv">
+  </div>
 </div>
 
-<div id="main">
-  <!-- Upload area -->
-  <div id="upload-area">
-    <div id="drop-zone">
-      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:block;margin:0 auto 12px">
-        <path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-      </svg>
-      <h2>Upload your MDR file</h2>
-      <p>Drag &amp; drop an Excel file here, or click to browse<br><small>Supports .xlsx and .xls</small></p>
-      <button id="drop-zone-btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+<div id="sidebar">
+  <div class="nav-section">Overview</div>
+  <button class="nav-btn active" data-tab="dashboard" onclick="nav(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg> Dashboard
+  </button>
+  <button class="nav-btn" data-tab="timeline" onclick="nav(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg> Gantt Timeline
+  </button>
+
+  <div class="nav-section" style="margin-top:8px">Tracking</div>
+  <button class="nav-btn" data-tab="issues" onclick="nav(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/>
+      <circle cx="12" cy="16" r=".5" fill="currentColor"/>
+    </svg> Issues &amp; Risks
+    <span class="nav-badge" id="nb-issues">0</span>
+  </button>
+  <button class="nav-btn" data-tab="thisweek" onclick="nav(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg> This Week
+    <span class="nav-badge warn" id="nb-week">0</span>
+  </button>
+
+  <div class="nav-section" style="margin-top:8px">Data</div>
+  <button class="nav-btn" data-tab="responsibility" onclick="nav(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg> Responsibility
+  </button>
+  <button class="nav-btn" data-tab="all" onclick="nav(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14,2 14,8 20,8"/><line x1="8" y1="13" x2="16" y2="13"/>
+      <line x1="8" y1="17" x2="16" y2="17"/>
+    </svg> All Deliverables
+  </button>
+</div>
+
+<!-- ═══ MAIN CONTENT ══════════════════════════════════════════════════════ -->
+<div id="content">
+
+  <!-- Upload Screen -->
+  <div id="upload-screen">
+    <div class="upload-card" id="drop-zone">
+      <div class="upload-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <h2>Upload Your MDR File</h2>
+      <p>Drop your Master Deliverables Register here.<br>
+      The app auto-detects columns — start date, end date, status,<br>discipline, responsible person and more.</p>
+      <button class="upload-btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+      <div class="formats">
+        <span class="fmt-tag">Excel .xlsx</span>
+        <span class="fmt-tag">Excel .xls</span>
+        <span class="fmt-tag">CSV .csv</span>
+      </div>
     </div>
   </div>
 
-  <!-- Dashboard Tab -->
-  <div id="tab-dashboard" class="tab-panel" style="display:none">
-    <div class="metrics-row">
-      <div class="metric-card">
-        <div class="metric-label">Total Deliverables</div>
-        <div class="metric-value" id="m-total">0</div>
-        <div class="metric-sub">across all projects</div>
-      </div>
-      <div class="metric-card afc">
-        <div class="metric-label">AFC (Complete)</div>
-        <div class="metric-value" id="m-afc">0</div>
-        <div class="metric-sub" id="m-afc-pct">0% complete</div>
-      </div>
-      <div class="metric-card risk">
-        <div class="metric-label">At Risk</div>
-        <div class="metric-value" id="m-risk">0</div>
-        <div class="metric-sub">due in next 14 days</div>
-      </div>
-      <div class="metric-card overdue">
-        <div class="metric-label">Overdue</div>
-        <div class="metric-value" id="m-overdue">0</div>
-        <div class="metric-sub">past due date, not AFC</div>
-      </div>
+  <!-- Dashboard -->
+  <div class="panel" id="p-dashboard">
+    <div class="kpi-row">
+      <div class="kpi blue"><div class="kpi-label">Total Deliverables</div><div class="kpi-val" id="m-total">0</div><div class="kpi-sub">All projects</div></div>
+      <div class="kpi green"><div class="kpi-label">AFC / Complete</div><div class="kpi-val" id="m-afc">0</div><div class="kpi-sub" id="m-afc-pct">0% done</div></div>
+      <div class="kpi yellow"><div class="kpi-label">In Progress / IFR</div><div class="kpi-val" id="m-ifr">0</div><div class="kpi-sub">Under review</div></div>
+      <div class="kpi yellow"><div class="kpi-label">At Risk (14d)</div><div class="kpi-val" id="m-risk">0</div><div class="kpi-sub">Due soon</div></div>
+      <div class="kpi red"><div class="kpi-label">Overdue</div><div class="kpi-val" id="m-overdue">0</div><div class="kpi-sub">Past due, not done</div></div>
     </div>
 
     <div class="charts-row">
       <div class="chart-card">
-        <div class="card-title">Status Breakdown</div>
-        <div style="display:flex;justify-content:center">
-          <svg id="donut-svg" width="200" height="200" viewBox="0 0 200 200"></svg>
-        </div>
-        <div id="donut-legend"></div>
+        <div class="card-title">Status Overview</div>
+        <div id="donut-wrap"><svg id="donut-svg" width="180" height="180" viewBox="0 0 180 180"></svg></div>
+        <div class="donut-legend" id="donut-legend"></div>
       </div>
-      <div class="table-card">
-        <div class="table-card-header">
-          <div class="card-title" style="margin:0">Projects Overview</div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Total</th>
-                <th>AFC</th>
-                <th>IFR</th>
-                <th>Not Started</th>
-                <th>Late</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="proj-table-body"></tbody>
-          </table>
-        </div>
+      <div class="chart-card">
+        <div class="card-title">Progress by Discipline / Project</div>
+        <div class="bar-chart" id="bar-chart"></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">Due in Next 30 Days</div>
+        <div class="timeline-list" id="upcoming-list"></div>
       </div>
     </div>
-  </div>
 
-  <!-- This Week Tab -->
-  <div id="tab-thisweek" class="tab-panel" style="display:none">
-    <div class="card-title" style="margin-bottom:4px">Deliverables Due This Week</div>
-    <p style="font-size:13px;color:#64748b;margin-bottom:16px" id="week-range-label"></p>
-    <div class="table-card">
-      <div class="table-wrap">
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <span class="tbl-title">Projects Summary</span>
+        <span class="tbl-count" id="proj-count">0 projects</span>
+      </div>
+      <div class="tbl-wrap">
         <table>
-          <thead>
-            <tr><th>Doc No</th><th>Title</th><th>Discipline</th><th>Due</th><th>Status</th></tr>
-          </thead>
-          <tbody id="week-table-body"></tbody>
+          <thead><tr>
+            <th>Project</th><th>Total</th><th>AFC</th><th>IFR</th>
+            <th>Not Started</th><th>Overdue</th><th>Progress</th><th>Status</th>
+          </tr></thead>
+          <tbody id="proj-tbody"></tbody>
         </table>
-      </div>
-    </div>
-    <div class="carryover-section">
-      <div class="section-title">Carry-over (Overdue Items)</div>
-      <div class="table-card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Doc No</th><th>Title</th><th>Discipline</th><th>Due</th><th>Status</th><th>Days Late</th></tr>
-            </thead>
-            <tbody id="carryover-table-body"></tbody>
-          </table>
-        </div>
       </div>
     </div>
   </div>
 
-  <!-- Issues & Risks Tab -->
-  <div id="tab-issues" class="tab-panel" style="display:none">
+  <!-- Timeline / Gantt -->
+  <div class="panel" id="p-timeline">
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <span class="tbl-title">Gantt Timeline</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="gantt-group" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:8px;font-size:12px;outline:none">
+            <option value="discipline">Group by Discipline</option>
+            <option value="project">Group by Project</option>
+            <option value="owner">Group by Owner</option>
+          </select>
+        </div>
+      </div>
+      <div class="gantt-wrap" id="gantt-wrap" style="max-height:calc(100vh - 200px);overflow:auto"></div>
+    </div>
+  </div>
+
+  <!-- Issues & Risks -->
+  <div class="panel" id="p-issues">
     <div class="two-col">
-      <div class="table-card">
-        <div class="table-card-header">
-          <div class="card-title" style="margin:0;color:#dc2626">Overdue Items</div>
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <span class="tbl-title" style="color:var(--red)">🔴 Overdue</span>
+          <span class="tbl-count" id="ov-count">0 items</span>
         </div>
-        <div class="table-wrap">
+        <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Doc No</th><th>Title</th><th>Due</th><th>Days Late</th><th>Status</th></tr></thead>
-            <tbody id="overdue-table-body"></tbody>
+            <thead><tr><th>Doc No</th><th>Title</th><th>Due</th><th>Days Late</th><th>Status</th><th>Owner</th></tr></thead>
+            <tbody id="ov-tbody"></tbody>
           </table>
         </div>
       </div>
-      <div class="table-card">
-        <div class="table-card-header">
-          <div class="card-title" style="margin:0;color:#d97706">At Risk (Next 14 Days)</div>
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <span class="tbl-title" style="color:var(--yellow)">⚠ At Risk (14 days)</span>
+          <span class="tbl-count" id="risk-count">0 items</span>
         </div>
-        <div class="table-wrap">
+        <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Doc No</th><th>Title</th><th>Due</th><th>Days Left</th><th>Status</th></tr></thead>
-            <tbody id="atrisk-table-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="ifr-stuck-section">
-      <div class="section-title">Stuck in IFR (&gt;21 days since IFR date)</div>
-      <div class="table-card">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Doc No</th><th>Title</th><th>IFR Date</th><th>Days in IFR</th><th>Owner</th></tr></thead>
-            <tbody id="stuck-ifr-body"></tbody>
+            <thead><tr><th>Doc No</th><th>Title</th><th>Due</th><th>Days Left</th><th>Status</th><th>Owner</th></tr></thead>
+            <tbody id="risk-tbody"></tbody>
           </table>
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- Responsibility Tab -->
-  <div id="tab-responsibility" class="tab-panel" style="display:none">
-    <div id="responsibility-content"></div>
-  </div>
-
-  <!-- All Deliverables Tab -->
-  <div id="tab-all" class="tab-panel" style="display:none">
-    <div class="table-card">
-      <div class="filter-row">
-        <span class="filter-label">Filter:</span>
-        <input type="text" id="search-box" placeholder="Search title or doc no…">
-        <select id="filter-status">
-          <option value="">All Statuses</option>
-          <option value="AFC">AFC</option>
-          <option value="IFR">IFR</option>
-          <option value="NOT_STARTED">Not Started</option>
-        </select>
-        <select id="filter-project"><option value="">All Projects</option></select>
-        <select id="filter-discipline"><option value="">All Disciplines</option></select>
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <span class="tbl-title" style="color:var(--yellow)">🟡 Stuck in IFR (&gt;21 days)</span>
+        <span class="tbl-count" id="ifr-count">0 items</span>
       </div>
-      <div class="table-wrap">
-        <table id="all-table">
-          <thead>
-            <tr>
-              <th class="sortable" data-col="doc_number">Doc No</th>
-              <th class="sortable" data-col="title">Title</th>
-              <th class="sortable" data-col="project">Project</th>
-              <th class="sortable" data-col="discipline">Discipline</th>
-              <th class="sortable" data-col="status">Status</th>
-              <th class="sortable" data-col="planned_end">Due Date</th>
-              <th>IFR Date</th>
-              <th>AFC Date</th>
-              <th class="sortable" data-col="owner">Owner</th>
-            </tr>
-          </thead>
-          <tbody id="all-table-body"></tbody>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Doc No</th><th>Title</th><th>IFR Since</th><th>Days in IFR</th><th>Owner</th><th>Discipline</th></tr></thead>
+          <tbody id="ifr-tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- This Week -->
+  <div class="panel" id="p-thisweek">
+    <div style="margin-bottom:16px">
+      <div style="font-size:20px;font-weight:700;color:var(--text)">This Week's Deliverables</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px" id="week-range"></div>
+    </div>
+    <div class="tbl-card" style="margin-bottom:14px">
+      <div class="tbl-head"><span class="tbl-title">Due This Week</span><span class="tbl-count" id="wk-count">0</span></div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Doc No</th><th>Title</th><th>Discipline</th><th>Due</th><th>Owner</th><th>Status</th></tr></thead>
+        <tbody id="wk-tbody"></tbody></table>
+      </div>
+    </div>
+    <div class="tbl-card">
+      <div class="tbl-head"><span class="tbl-title" style="color:var(--red)">Carry-Over (Overdue)</span><span class="tbl-count" id="co-count">0</span></div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Doc No</th><th>Title</th><th>Discipline</th><th>Due</th><th>Owner</th><th>Status</th><th>Days Late</th></tr></thead>
+        <tbody id="co-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Responsibility Matrix -->
+  <div class="panel" id="p-responsibility">
+    <div class="tbl-card">
+      <div class="matrix-toolbar">
+        <span style="font-size:14px;font-weight:700;color:var(--text);flex:0 0 auto">Responsibility Matrix</span>
+        <input type="text" id="new-person" placeholder="Person name…" style="width:170px">
+        <input type="text" id="new-role" placeholder="Role / Discipline…" style="width:150px">
+        <button class="add-btn" onclick="addPerson()">+ Add Person</button>
+        <span style="flex:1"></span>
+        <input type="text" id="resp-search" placeholder="Search deliverables…" style="width:200px" oninput="renderResponsibility()">
+      </div>
+      <div id="resp-matrix"></div>
+    </div>
+    <div style="margin-top:14px;font-size:12px;color:var(--muted);padding:0 4px">
+      💡 Tip: Click any cell to edit it. Changes are auto-saved locally. Use "Add Person" to build your responsibility matrix from scratch.
+    </div>
+  </div>
+
+  <!-- All Deliverables -->
+  <div class="panel" id="p-all">
+    <div class="tbl-card">
+      <div class="tbl-head">
+        <span class="tbl-title">All Deliverables</span>
+        <span class="tbl-count" id="all-count">0</span>
+      </div>
+      <div class="filter-bar">
+        <label>Filter:</label>
+        <input type="text" id="all-search" placeholder="Search title, doc no…" oninput="renderAll()">
+        <select id="all-status" onchange="renderAll()">
+          <option value="">All Statuses</option>
+          <option value="AFC">AFC / Complete</option>
+          <option value="IFR">IFR / In Progress</option>
+          <option value="NOT_STARTED">Not Started</option>
+          <option value="OVERDUE">Overdue</option>
+        </select>
+        <select id="all-project" onchange="renderAll()"><option value="">All Projects</option></select>
+        <select id="all-disc" onchange="renderAll()"><option value="">All Disciplines</option></select>
+        <select id="all-owner" onchange="renderAll()"><option value="">All Owners</option></select>
+      </div>
+      <div class="tbl-wrap">
+        <table id="all-table">
+          <thead><tr>
+            <th class="sort" data-col="doc_number">Doc No</th>
+            <th class="sort" data-col="title">Title</th>
+            <th class="sort" data-col="project">Project</th>
+            <th class="sort" data-col="discipline">Discipline</th>
+            <th class="sort" data-col="status">Status</th>
+            <th class="sort" data-col="planned_start">Start</th>
+            <th class="sort" data-col="planned_end">Due Date</th>
+            <th>IFR Date</th>
+            <th>AFC Date</th>
+            <th class="sort" data-col="owner">Owner</th>
+          </tr></thead>
+          <tbody id="all-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<!-- ═══ DETAIL MODAL ══════════════════════════════════════════════════════ -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <div id="modal-header">
+      <div id="modal-title"></div>
+      <button id="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ═══ COLUMN MAPPER ═════════════════════════════════════════════════════ -->
+<div id="mapper-overlay">
+  <div id="mapper-card">
+    <h2>Map Your Columns</h2>
+    <div class="mapper-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:18px">
+        We couldn't auto-detect some columns. Match your spreadsheet headers to the fields below.
+      </p>
+      <div class="mapper-grid" id="mapper-grid"></div>
+      <div class="mapper-actions">
+        <button class="sec-btn" onclick="closeMapper()">Cancel</button>
+        <button class="pri-btn" onclick="applyMapper()">Import Data →</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- ═══ TOAST ═════════════════════════════════════════════════════════════ -->
 <div id="toast"></div>
 
 <script>
-// ─── State ────────────────────────────────────────────────────────────────────
-let allData = [];
-let sortState = { col: null, dir: 1 };
+// ══════════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════════
+let DATA = [];
+let PEOPLE = [];      // [{id, name, role, assignments:[{docId,note}]}]
+let mapperHeaders = [];
+let mapperRawRows = [];
+let sortState = {col:null, dir:1};
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
-function today() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+// ══════════════════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════════════════
+const today = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
 
-function parseDate(val) {
-  if (!val) return null;
-  if (val instanceof Date) return isNaN(val) ? null : val;
-  if (typeof val === 'number') {
-    // Excel serial date
-    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-    return isNaN(d) ? null : d;
+function parseDate(v) {
+  if (!v && v !== 0) return null;
+  if (v instanceof Date) return isNaN(v)?null:v;
+  if (typeof v === 'number') {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return isNaN(d)?null:d;
   }
-  const s = String(val).trim();
-  if (!s) return null;
-  // Try common formats
-  const parsed = new Date(s);
-  if (!isNaN(parsed)) return parsed;
-  // dd/mm/yyyy
-  const dm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (dm) {
-    const yr = dm[3].length === 2 ? '20' + dm[3] : dm[3];
-    return new Date(`${yr}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`);
+  const s = String(v).trim(); if (!s) return null;
+  const d1 = new Date(s); if (!isNaN(d1)) return d1;
+  const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (m) {
+    const y = m[3].length===2?'20'+m[3]:m[3];
+    return new Date(`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`);
   }
   return null;
 }
 
-function fmtDate(d) {
-  if (!d) return '—';
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+function fmt(d) { return d ? d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—'; }
+function fmtShort(d) { return d ? d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : '—'; }
+function diff(a,b) { return Math.round((a-b)/86400000); }
 
-function diffDays(a, b) {
-  return Math.round((a - b) / 86400000);
-}
-
-function statusBadge(s) {
-  if (s === 'AFC') return `<span class="badge badge-afc">AFC</span>`;
-  if (s === 'IFR') return `<span class="badge badge-ifr">IFR</span>`;
-  return `<span class="badge badge-not-started">Not Started</span>`;
-}
-
-function normalizeStatus(raw) {
+function normStatus(raw) {
   if (!raw) return 'NOT_STARTED';
   const s = String(raw).trim().toLowerCase();
-  if (/^afc|approv|complet|done/.test(s)) return 'AFC';
-  if (/^ifr|review|in.rev|in.prog/.test(s)) return 'IFR';
+  if (/afc|approv|complet|done|issued for construction/.test(s)) return 'AFC';
+  if (/ifr|review|in.rev|in.prog|progress|issued for review/.test(s)) return 'IFR';
+  if (/not.start|pending|planned/.test(s)) return 'NOT_STARTED';
+  if (/hold|cancel/.test(s)) return 'ON_HOLD';
   return 'NOT_STARTED';
 }
 
-function showToast(msg, dur = 3000) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.display = 'block';
-  setTimeout(() => t.style.display = 'none', dur);
+function statusBadge(s, row) {
+  const t = today();
+  if (s === 'AFC') return `<span class="badge badge-afc">✓ AFC</span>`;
+  if (s === 'IFR') return `<span class="badge badge-ifr">◎ IFR</span>`;
+  if (s === 'ON_HOLD') return `<span class="badge" style="background:rgba(148,163,184,.1);color:var(--muted)">⏸ On Hold</span>`;
+  if (row && row.planned_end && row.planned_end < t) return `<span class="badge badge-overdue">⚠ Overdue</span>`;
+  return `<span class="badge badge-ns">○ Not Started</span>`;
 }
 
-function weekRange() {
-  const d = today();
-  const dow = d.getDay(); // 0=Sun
-  const mon = new Date(d);
-  mon.setDate(d.getDate() - ((dow + 6) % 7));
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  return { mon, sun };
+function toast(msg, dur=3500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.display='block';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.style.display='none', dur);
 }
 
-// ─── Column Detection ─────────────────────────────────────────────────────────
-const COL_SYNONYMS = {
-  doc_number:  ['doc no', 'document number', 'doc #', 'id', 'doc number', 'docno', 'document no'],
-  title:       ['document title', 'title', 'description', 'doc title'],
-  discipline:  ['discipline', 'disc'],
-  project:     ['project', 'project name'],
-  status:      ['status', 'doc status', 'current status'],
-  planned_end: ['planned end', 'end date', 'target date', 'due date', 'planned end date'],
-  ifr_date:    ['ifr date', 'issued for review', 'ifr'],
-  afc_date:    ['afc date', 'approved for construction', 'afc'],
-  owner:       ['owner', 'responsible', 'assigned to', 'assignee'],
+function avatar(name) {
+  const initials = name.split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  const colors = ['#06b6d4','#8b5cf6','#f59e0b','#10b981','#ef4444','#3b82f6'];
+  const col = colors[name.charCodeAt(0)%colors.length];
+  return `<div class="avatar" style="background:linear-gradient(135deg,${col},${col}aa)">${initials}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  COLUMN DETECTION
+// ══════════════════════════════════════════════════════════════════
+const FIELDS = {
+  doc_number:   ['doc no','document no','document number','doc #','doc number','docno','id','dwg no','drawing no'],
+  title:        ['document title','title','description','doc title','subject','name'],
+  discipline:   ['discipline','disc','dept','department'],
+  project:      ['project','project name','job','job no','contract'],
+  status:       ['status','doc status','current status','stage'],
+  planned_start:['planned start','start date','start','planned start date','early start'],
+  planned_end:  ['planned end','end date','target date','due date','planned end date','finish','due','forecast end','target end'],
+  ifr_date:     ['ifr date','ifr','issued for review','ifr actual','date ifr'],
+  afc_date:     ['afc date','afc','approved for construction','afc actual','date afc'],
+  owner:        ['owner','responsible','assignee','assigned to','person','lead','engineer'],
 };
 
-function detectColumns(headers) {
+function detectCols(headers) {
   const map = {};
-  headers.forEach((h, i) => {
-    const lower = String(h).trim().toLowerCase();
-    for (const [field, synonyms] of Object.entries(COL_SYNONYMS)) {
-      if (!map[field] && synonyms.some(s => lower === s || lower.includes(s))) {
-        map[field] = i;
-      }
+  headers.forEach((h,i) => {
+    const low = String(h).trim().toLowerCase();
+    for (const [field, syns] of Object.entries(FIELDS)) {
+      if (!map[field] && syns.some(s => low === s || low.includes(s))) map[field] = i;
     }
   });
   return map;
 }
 
-// ─── Parse Excel ──────────────────────────────────────────────────────────────
-function parseExcel(file) {
+// ══════════════════════════════════════════════════════════════════
+//  COLUMN MAPPER UI
+// ══════════════════════════════════════════════════════════════════
+function openMapper(headers, rawRows) {
+  mapperHeaders = headers;
+  mapperRawRows = rawRows;
+  const detected = detectCols(headers);
+  const grid = document.getElementById('mapper-grid');
+  grid.innerHTML = Object.entries(FIELDS).map(([field, syns]) => {
+    const opts = ['<option value="">— skip —</option>',
+      ...headers.map((h,i) => `<option value="${i}"${detected[field]===i?' selected':''}>${h}</option>`)
+    ].join('');
+    const label = field.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    return `<div class="mapper-field">
+      <label>${label}</label>
+      <select id="map-${field}">${opts}</select>
+    </div>`;
+  }).join('');
+  document.getElementById('mapper-overlay').classList.add('open');
+}
+
+function closeMapper() { document.getElementById('mapper-overlay').classList.remove('open'); }
+
+function applyMapper() {
+  const colMap = {};
+  Object.keys(FIELDS).forEach(f => {
+    const v = document.getElementById('map-'+f)?.value;
+    if (v !== '' && v != null) colMap[f] = parseInt(v);
+  });
+  const rows = buildRows(mapperRawRows, colMap);
+  if (!rows.length) { toast('No valid rows found'); return; }
+  DATA = rows;
+  saveData();
+  closeMapper();
+  toast(`✓ Loaded ${rows.length} deliverables`);
+  boot();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PARSE & BUILD
+// ══════════════════════════════════════════════════════════════════
+function buildRows(rawRows, colMap) {
+  const get = (r,f) => colMap[f] !== undefined ? r[colMap[f]] : '';
+  return rawRows
+    .filter(r => r && !r.every(c => !String(c).trim()))
+    .map((r,i) => ({
+      id:           String(get(r,'doc_number')||'').trim() || `ROW-${i+1}`,
+      doc_number:   String(get(r,'doc_number')||'').trim() || `ROW-${i+1}`,
+      title:        String(get(r,'title')||'').trim() || '(Untitled)',
+      discipline:   String(get(r,'discipline')||'').trim() || '—',
+      project:      String(get(r,'project')||'').trim() || '—',
+      status:       normStatus(get(r,'status')),
+      planned_start:parseDate(get(r,'planned_start')),
+      planned_end:  parseDate(get(r,'planned_end')),
+      ifr_date:     parseDate(get(r,'ifr_date')),
+      afc_date:     parseDate(get(r,'afc_date')),
+      owner:        String(get(r,'owner')||'').trim() || '—',
+    }));
+}
+
+function parseFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      if (typeof XLSX === 'undefined') { toast('SheetJS library not loaded (check connection)'); return; }
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      if (!raw.length) { showToast('Empty sheet'); return; }
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if (!raw.length) { toast('File is empty'); return; }
 
-      // Find header row (first non-empty row with multiple non-empty cells)
       let headerRow = 0;
-      for (let i = 0; i < Math.min(10, raw.length); i++) {
-        const nonEmpty = raw[i].filter(c => String(c).trim()).length;
-        if (nonEmpty > 2) { headerRow = i; break; }
+      for (let i=0; i<Math.min(15,raw.length); i++) {
+        if (raw[i].filter(c=>String(c).trim()).length > 2) { headerRow=i; break; }
       }
-      const headers = raw[headerRow].map(h => String(h).trim());
-      const colMap = detectColumns(headers);
+      const headers = raw[headerRow].map(h=>String(h).trim());
+      const rawRows = raw.slice(headerRow+1);
+      const detected = detectCols(headers);
+      const certainFields = Object.keys(detected).length;
 
-      const rows = [];
-      for (let i = headerRow + 1; i < raw.length; i++) {
-        const r = raw[i];
-        if (!r || r.every(c => !String(c).trim())) continue;
-        const get = field => colMap[field] !== undefined ? r[colMap[field]] : '';
-        const rawStatus = get('status');
-        const status = normalizeStatus(rawStatus);
-        rows.push({
-          doc_number:  String(get('doc_number') || '').trim() || `ROW-${i}`,
-          title:       String(get('title') || '').trim() || '(Untitled)',
-          discipline:  String(get('discipline') || '').trim() || '—',
-          project:     String(get('project') || '').trim() || '—',
-          status,
-          planned_end: parseDate(get('planned_end')),
-          ifr_date:    parseDate(get('ifr_date')),
-          afc_date:    parseDate(get('afc_date')),
-          owner:       String(get('owner') || '').trim() || '—',
-        });
+      document.getElementById('header-file').textContent = `📄 ${file.name}`;
+
+      if (certainFields >= 3) {
+        const rows = buildRows(rawRows, detected);
+        if (rows.length) {
+          DATA = rows;
+          saveData();
+          toast(`✓ Loaded ${rows.length} deliverables from "${wb.SheetNames[0]}"`);
+          boot();
+          return;
+        }
       }
-
-      if (!rows.length) { showToast('No data rows found'); return; }
-      allData = rows;
-      localStorage.setItem('mdr_data', JSON.stringify(rows.map(r => ({
-        ...r,
-        planned_end: r.planned_end ? r.planned_end.toISOString() : null,
-        ifr_date:    r.ifr_date    ? r.ifr_date.toISOString()    : null,
-        afc_date:    r.afc_date    ? r.afc_date.toISOString()    : null,
-      }))));
-      showToast(`Loaded ${rows.length} deliverables`);
-      renderAll();
-      switchTab('dashboard');
-    } catch (err) {
-      showToast('Error reading file: ' + err.message);
-      console.error(err);
-    }
+      openMapper(headers, rawRows);
+    } catch(err) { toast('Error: '+err.message); console.error(err); }
   };
   reader.readAsArrayBuffer(file);
 }
 
-function loadFromStorage() {
+// ══════════════════════════════════════════════════════════════════
+//  PERSISTENCE
+// ══════════════════════════════════════════════════════════════════
+function saveData() {
   try {
-    const s = localStorage.getItem('mdr_data');
-    if (!s) return false;
-    const parsed = JSON.parse(s);
-    allData = parsed.map(r => ({
+    localStorage.setItem('mdr_v3', JSON.stringify(DATA.map(r=>({
       ...r,
-      planned_end: r.planned_end ? new Date(r.planned_end) : null,
-      ifr_date:    r.ifr_date    ? new Date(r.ifr_date)    : null,
-      afc_date:    r.afc_date    ? new Date(r.afc_date)    : null,
-    }));
-    return allData.length > 0;
-  } catch { return false; }
+      planned_start: r.planned_start?.toISOString()??null,
+      planned_end:   r.planned_end?.toISOString()??null,
+      ifr_date:      r.ifr_date?.toISOString()??null,
+      afc_date:      r.afc_date?.toISOString()??null,
+    }))));
+    localStorage.setItem('mdr_people', JSON.stringify(PEOPLE));
+  } catch(e){}
 }
 
-// ─── Tab switching ────────────────────────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
-  const panel = document.getElementById('tab-' + name);
-  if (panel) panel.style.display = 'block';
+function loadData() {
+  try {
+    const s = localStorage.getItem('mdr_v3');
+    if (s) {
+      DATA = JSON.parse(s).map(r=>({
+        ...r,
+        planned_start: r.planned_start?new Date(r.planned_start):null,
+        planned_end:   r.planned_end?new Date(r.planned_end):null,
+        ifr_date:      r.ifr_date?new Date(r.ifr_date):null,
+        afc_date:      r.afc_date?new Date(r.afc_date):null,
+      }));
+    }
+    const p = localStorage.getItem('mdr_people');
+    if (p) PEOPLE = JSON.parse(p);
+  } catch(e){}
 }
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (!allData.length) { showToast('Please upload a file first'); return; }
-    switchTab(btn.dataset.tab);
-  });
-});
+// ══════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════════════
+function nav(btn) {
+  if (!DATA.length && btn.dataset.tab !== 'responsibility') {
+    toast('Please upload your MDR file first'); return;
+  }
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const tab = btn.dataset.tab;
+  document.getElementById('p-'+tab)?.classList.add('active');
+  if (tab==='dashboard') renderDashboard();
+  if (tab==='timeline')  renderGantt();
+  if (tab==='issues')    renderIssues();
+  if (tab==='thisweek')  renderThisWeek();
+  if (tab==='responsibility') renderResponsibility();
+  if (tab==='all')       { populateAllFilters(); renderAll(); }
+}
 
-// ─── Donut Chart ──────────────────────────────────────────────────────────────
-function drawDonut(afc, ifr, ns) {
+// ══════════════════════════════════════════════════════════════════
+//  DONUT CHART
+// ══════════════════════════════════════════════════════════════════
+function drawDonut(afc, ifr, ns, hold) {
   const svg = document.getElementById('donut-svg');
-  const total = afc + ifr + ns || 1;
-  const cx = 100, cy = 100, r = 80, inner = 50;
-  const segments = [
-    { val: afc, color: '#16a34a', label: 'AFC' },
-    { val: ifr, color: '#f59e0b', label: 'IFR' },
-    { val: ns,  color: '#cbd5e1', label: 'Not Started' },
-  ];
+  const total = afc+ifr+ns+hold || 1;
+  const segs = [
+    {v:afc, color:'#4ade80', label:'AFC'},
+    {v:ifr, color:'#fbbf24', label:'IFR'},
+    {v:ns,  color:'#475569', label:'Not Started'},
+    {v:hold,color:'#818cf8', label:'On Hold'},
+  ].filter(s=>s.v>0);
 
-  let paths = '';
-  let start = -Math.PI / 2;
-  segments.forEach(seg => {
-    if (!seg.val) return;
-    const angle = (seg.val / total) * 2 * Math.PI;
-    const end = start + angle;
-    const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
-    const xi1 = cx + inner * Math.cos(end), yi1 = cy + inner * Math.sin(end);
-    const xi2 = cx + inner * Math.cos(start), yi2 = cy + inner * Math.sin(start);
-    const lg = angle > Math.PI ? 1 : 0;
-    paths += `<path d="M${x1},${y1} A${r},${r} 0 ${lg},1 ${x2},${y2} L${xi1},${yi1} A${inner},${inner} 0 ${lg},0 ${xi2},${yi2} Z" fill="${seg.color}"/>`;
-    start = end;
+  const cx=90,cy=90,r=78,ri=50;
+  let paths='', start=-Math.PI/2;
+  segs.forEach(seg=>{
+    const a=(seg.v/total)*2*Math.PI, end=start+a;
+    const x1=cx+r*Math.cos(start), y1=cy+r*Math.sin(start);
+    const x2=cx+r*Math.cos(end),   y2=cy+r*Math.sin(end);
+    const ix1=cx+ri*Math.cos(end),  iy1=cy+ri*Math.sin(end);
+    const ix2=cx+ri*Math.cos(start),iy2=cy+ri*Math.sin(start);
+    const lg=a>Math.PI?1:0;
+    paths+=`<path d="M${x1},${y1}A${r},${r} 0 ${lg},1 ${x2},${y2}L${ix1},${iy1}A${ri},${ri} 0 ${lg},0 ${ix2},${iy2}Z" fill="${seg.color}" opacity=".9"/>`;
+    start=end;
   });
+  const pct=Math.round((afc/total)*100);
+  svg.innerHTML = paths
+    + `<text x="90" y="86" text-anchor="middle" font-size="26" font-weight="800" fill="#e2e8f0">${pct}%</text>`
+    + `<text x="90" y="102" text-anchor="middle" font-size="11" fill="#94a3b8">COMPLETE</text>`;
 
-  const pct = Math.round((afc / total) * 100);
-  svg.innerHTML = paths +
-    `<text x="100" y="96" text-anchor="middle" font-size="26" font-weight="700" fill="#0c4a6e">${pct}%</text>` +
-    `<text x="100" y="114" text-anchor="middle" font-size="11" fill="#64748b">AFC</text>`;
-
-  const legend = document.getElementById('donut-legend');
-  legend.innerHTML = segments.map(s =>
-    `<div class="legend-item"><div class="legend-dot" style="background:${s.color}"></div><span>${s.label}: <strong>${s.val}</strong></span></div>`
+  document.getElementById('donut-legend').innerHTML = segs.map(s=>
+    `<div class="dl-item">
+      <div class="dl-dot" style="background:${s.color}"></div>
+      <span class="dl-label">${s.label}</span>
+      <span class="dl-val">${s.v} <span style="color:var(--muted);font-weight:400">(${Math.round(s.v/total*100)}%)</span></span>
+    </div>`
   ).join('');
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════════════
 function renderDashboard() {
-  const t = today();
-  const in14 = new Date(t); in14.setDate(t.getDate() + 14);
+  const t=today(), in14=new Date(t); in14.setDate(t.getDate()+14);
+  const in30=new Date(t); in30.setDate(t.getDate()+30);
 
-  let afcCount = 0, ifrCount = 0, nsCount = 0, riskCount = 0, overdueCount = 0;
-  allData.forEach(r => {
-    if (r.status === 'AFC') afcCount++;
-    else if (r.status === 'IFR') ifrCount++;
-    else nsCount++;
-    if (r.status !== 'AFC' && r.planned_end) {
-      if (r.planned_end < t) overdueCount++;
-      else if (r.planned_end <= in14) riskCount++;
+  let afc=0,ifr=0,ns=0,hold=0,risk=0,ov=0;
+  DATA.forEach(r=>{
+    if (r.status==='AFC')         afc++;
+    else if (r.status==='IFR')    ifr++;
+    else if (r.status==='ON_HOLD') hold++;
+    else ns++;
+    if (r.status!=='AFC' && r.planned_end) {
+      if (r.planned_end<t)          ov++;
+      else if (r.planned_end<=in14) risk++;
     }
   });
 
-  document.getElementById('m-total').textContent = allData.length;
-  document.getElementById('m-afc').textContent = afcCount;
-  document.getElementById('m-afc-pct').textContent = Math.round((afcCount / (allData.length || 1)) * 100) + '% complete';
-  document.getElementById('m-risk').textContent = riskCount;
-  document.getElementById('m-overdue').textContent = overdueCount;
+  document.getElementById('m-total').textContent = DATA.length;
+  document.getElementById('m-afc').textContent   = afc;
+  document.getElementById('m-afc-pct').textContent = Math.round(afc/(DATA.length||1)*100)+'% done';
+  document.getElementById('m-ifr').textContent   = ifr;
+  document.getElementById('m-risk').textContent  = risk;
+  document.getElementById('m-overdue').textContent = ov;
+  document.getElementById('nb-issues').textContent = ov;
+  const wk = DATA.filter(r=>{ const {mon,sun}=weekRange(); return r.planned_end&&r.planned_end>=mon&&r.planned_end<=sun; }).length;
+  document.getElementById('nb-week').textContent = wk;
 
-  drawDonut(afcCount, ifrCount, nsCount);
+  drawDonut(afc,ifr,ns,hold);
+
+  // Bar chart by discipline
+  const groups = {};
+  DATA.forEach(r=>{
+    const g = r.discipline;
+    if (!groups[g]) groups[g]={total:0,afc:0};
+    groups[g].total++; if(r.status==='AFC') groups[g].afc++;
+  });
+  const sorted = Object.entries(groups).sort((a,b)=>b[1].total-a[1].total).slice(0,12);
+  document.getElementById('bar-chart').innerHTML = sorted.map(([name,g])=>{
+    const pct=Math.round(g.afc/g.total*100);
+    return `<div class="bar-row">
+      <div class="bar-name" title="${name}">${name}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pct}%"><span>${pct}%</span></div>
+      </div>
+      <div class="bar-num">${g.afc}/${g.total}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);font-size:13px;padding:8px">No data</div>';
+
+  // Upcoming in 30 days
+  const upcoming = DATA.filter(r=>r.status!=='AFC'&&r.planned_end&&r.planned_end>=t&&r.planned_end<=in30)
+    .sort((a,b)=>a.planned_end-b.planned_end).slice(0,15);
+  document.getElementById('upcoming-list').innerHTML = upcoming.length ? upcoming.map(r=>{
+    const d=diff(r.planned_end,t);
+    const cls = d<=3?'badge-overdue':d<=7?'badge-risk':'badge-ok';
+    return `<div class="tl-item">
+      <div class="tl-date">${fmtShort(r.planned_end)}</div>
+      <div class="tl-info">
+        <div class="tl-title" title="${r.title}">${r.title}</div>
+        <div class="tl-sub">${r.discipline} · ${r.owner}</div>
+      </div>
+      <div class="tl-badge"><span class="badge ${cls}">${d}d</span></div>
+    </div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px;padding:8px">None due in 30 days</div>';
 
   // Projects table
-  const projects = {};
-  allData.forEach(r => {
-    const p = r.project || '—';
-    if (!projects[p]) projects[p] = { total: 0, afc: 0, ifr: 0, ns: 0, late: 0 };
-    projects[p].total++;
-    if (r.status === 'AFC') projects[p].afc++;
-    else if (r.status === 'IFR') projects[p].ifr++;
-    else projects[p].ns++;
-    if (r.status !== 'AFC' && r.planned_end && r.planned_end < t) projects[p].late++;
+  const projs = {};
+  DATA.forEach(r=>{
+    const p=r.project||'—';
+    if (!projs[p]) projs[p]={total:0,afc:0,ifr:0,ns:0,ov:0};
+    projs[p].total++;
+    if(r.status==='AFC') projs[p].afc++;
+    else if(r.status==='IFR') projs[p].ifr++;
+    else projs[p].ns++;
+    if(r.status!=='AFC'&&r.planned_end&&r.planned_end<t) projs[p].ov++;
   });
-
-  const tbody = document.getElementById('proj-table-body');
-  tbody.innerHTML = Object.entries(projects).sort((a,b) => b[1].total - a[1].total).map(([name, p]) => {
-    const pct = Math.round((p.afc / p.total) * 100);
-    let badge;
-    if (p.late > 0) badge = `<span class="badge badge-overdue">${p.late} Late</span>`;
-    else if (pct === 100) badge = `<span class="badge badge-afc">Complete</span>`;
-    else if (pct >= 50) badge = `<span class="badge badge-ok">On Track</span>`;
-    else badge = `<span class="badge badge-risk">At Risk</span>`;
-    return `<tr><td><strong>${name}</strong></td><td>${p.total}</td><td style="color:#16a34a;font-weight:600">${p.afc}</td><td style="color:#d97706;font-weight:600">${p.ifr}</td><td>${p.ns}</td><td style="color:#dc2626;font-weight:600">${p.late}</td><td>${badge}</td></tr>`;
-  }).join('') || '<tr><td colspan="7" class="empty-state">No projects found</td></tr>';
+  document.getElementById('proj-count').textContent = Object.keys(projs).length+' projects';
+  document.getElementById('proj-tbody').innerHTML = Object.entries(projs)
+    .sort((a,b)=>b[1].total-a[1].total).map(([name,p])=>{
+      const pct=Math.round(p.afc/p.total*100);
+      const badge = p.ov>0 ? `<span class="badge badge-overdue">${p.ov} Late</span>`
+        : pct===100 ? `<span class="badge badge-afc">Complete</span>`
+        : pct>=50   ? `<span class="badge badge-ok">On Track</span>`
+        : `<span class="badge badge-risk">Needs Attn</span>`;
+      return `<tr>
+        <td><strong>${name}</strong></td>
+        <td>${p.total}</td>
+        <td style="color:var(--green);font-weight:700">${p.afc}</td>
+        <td style="color:var(--yellow);font-weight:700">${p.ifr}</td>
+        <td>${p.ns}</td>
+        <td style="color:var(--red);font-weight:700">${p.ov||''}</td>
+        <td style="min-width:120px"><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div><span style="font-size:11px;color:var(--muted)">${pct}%</span></td>
+        <td>${badge}</td>
+      </tr>`;
+    }).join('') || '<tr class="empty-row"><td colspan="8">No projects</td></tr>';
 }
 
-// ─── This Week ────────────────────────────────────────────────────────────────
-function renderThisWeek() {
+// ══════════════════════════════════════════════════════════════════
+//  GANTT
+// ══════════════════════════════════════════════════════════════════
+function renderGantt() {
+  const groupBy = document.getElementById('gantt-group').value;
   const t = today();
-  const { mon, sun } = weekRange();
+  const datesWithVal = DATA.filter(r=>r.planned_end||r.planned_start);
+  if (!datesWithVal.length) { document.getElementById('gantt-wrap').innerHTML='<div style="padding:40px;color:var(--muted)">No date data available</div>'; return; }
 
-  document.getElementById('week-range-label').textContent =
-    `Week of ${fmtDate(mon)} – ${fmtDate(sun)}`;
+  const minD = datesWithVal.reduce((m,r)=>{
+    const d=r.planned_start||r.planned_end; return d<m?d:m;
+  }, datesWithVal[0].planned_start||datesWithVal[0].planned_end);
+  const maxD = datesWithVal.reduce((m,r)=>{
+    const d=r.planned_end||r.planned_start; return d>m?d:m;
+  }, datesWithVal[0].planned_end||datesWithVal[0].planned_start);
 
-  const weekItems = allData.filter(r => r.planned_end && r.planned_end >= mon && r.planned_end <= sun);
-  const overdue = allData.filter(r => r.status !== 'AFC' && r.planned_end && r.planned_end < t)
-    .sort((a, b) => a.planned_end - b.planned_end);
+  const span = diff(maxD,minD)+1;
+  const COL_W = Math.max(50, Math.min(120, Math.floor((window.innerWidth-450)/Math.ceil(span/30))));
 
-  const wbody = document.getElementById('week-table-body');
-  wbody.innerHTML = weekItems.length ? weekItems.map(r =>
-    `<tr><td>${r.doc_number}</td><td>${r.title}</td><td>${r.discipline}</td><td>${fmtDate(r.planned_end)}</td><td>${statusBadge(r.status)}</td></tr>`
-  ).join('') : '<tr><td colspan="5" class="empty-state">No deliverables due this week</td></tr>';
-
-  const cbody = document.getElementById('carryover-table-body');
-  cbody.innerHTML = overdue.length ? overdue.map(r => {
-    const late = diffDays(t, r.planned_end);
-    return `<tr><td>${r.doc_number}</td><td>${r.title}</td><td>${r.discipline}</td><td>${fmtDate(r.planned_end)}</td><td>${statusBadge(r.status)}</td><td><span class="badge badge-late">${late}d late</span></td></tr>`;
-  }).join('') : '<tr><td colspan="6" class="empty-state">No overdue items</td></tr>';
-}
-
-// ─── Issues & Risks ───────────────────────────────────────────────────────────
-function renderIssues() {
-  const t = today();
-  const in14 = new Date(t); in14.setDate(t.getDate() + 14);
-  const ago21 = new Date(t); ago21.setDate(t.getDate() - 21);
-
-  const overdue = allData.filter(r => r.status !== 'AFC' && r.planned_end && r.planned_end < t)
-    .sort((a, b) => a.planned_end - b.planned_end);
-  const atRisk = allData.filter(r => r.status !== 'AFC' && r.planned_end && r.planned_end >= t && r.planned_end <= in14)
-    .sort((a, b) => a.planned_end - b.planned_end);
-  const stuckIfr = allData.filter(r => r.status === 'IFR' && r.ifr_date && r.ifr_date < ago21)
-    .sort((a, b) => a.ifr_date - b.ifr_date);
-
-  const ob = document.getElementById('overdue-table-body');
-  ob.innerHTML = overdue.length ? overdue.map(r => {
-    const late = diffDays(t, r.planned_end);
-    return `<tr><td>${r.doc_number}</td><td>${r.title}</td><td>${fmtDate(r.planned_end)}</td><td><span class="badge badge-late">${late}d</span></td><td>${statusBadge(r.status)}</td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty-state">No overdue items</td></tr>';
-
-  const ab = document.getElementById('atrisk-table-body');
-  ab.innerHTML = atRisk.length ? atRisk.map(r => {
-    const left = diffDays(r.planned_end, t);
-    return `<tr><td>${r.doc_number}</td><td>${r.title}</td><td>${fmtDate(r.planned_end)}</td><td><span class="badge badge-risk">${left}d left</span></td><td>${statusBadge(r.status)}</td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty-state">No at-risk items</td></tr>';
-
-  const sb = document.getElementById('stuck-ifr-body');
-  sb.innerHTML = stuckIfr.length ? stuckIfr.map(r => {
-    const days = diffDays(t, r.ifr_date);
-    return `<tr><td>${r.doc_number}</td><td>${r.title}</td><td>${fmtDate(r.ifr_date)}</td><td><span class="badge badge-late">${days}d</span></td><td>${r.owner}</td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty-state">No items stuck in IFR</td></tr>';
-}
-
-// ─── Responsibility ───────────────────────────────────────────────────────────
-function renderResponsibility() {
-  const t = today();
-  const container = document.getElementById('responsibility-content');
-
-  const hasOwner = allData.some(r => r.owner && r.owner !== '—');
-  if (!hasOwner) {
-    container.innerHTML = '<div class="empty-state" style="padding:60px">No owner/responsible column detected in the uploaded file.</div>';
-    return;
+  // Month headers
+  const months = [];
+  let cur = new Date(minD.getFullYear(), minD.getMonth(), 1);
+  while (cur <= maxD) {
+    months.push(new Date(cur));
+    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
   }
+  const totalW = months.reduce((s,m)=>{
+    const end=new Date(m.getFullYear(),m.getMonth()+1,0);
+    const from=m<minD?minD:m; const to=end>maxD?maxD:end;
+    return s + Math.round(diff(to,from)+1) * (COL_W/30);
+  },0);
 
-  const owners = {};
-  allData.forEach(r => {
-    const o = r.owner || '—';
-    if (!owners[o]) owners[o] = [];
-    owners[o].push(r);
+  const todayX = Math.round(diff(t,minD)) * (COL_W/30);
+
+  // Group data
+  const groups = {};
+  DATA.forEach(r=>{
+    const key = r[groupBy]||'—';
+    if (!groups[key]) groups[key]=[];
+    groups[key].push(r);
   });
 
-  container.innerHTML = Object.entries(owners).sort((a,b) => a[0].localeCompare(b[0])).map(([name, items]) => {
-    const active = items.filter(r => r.status !== 'AFC').length;
-    const overdue = items.filter(r => r.status !== 'AFC' && r.planned_end && r.planned_end < t).length;
-    const rows = items.sort((a,b) => (a.planned_end||new Date(9e15)) - (b.planned_end||new Date(9e15))).map(r => {
-      const isLate = r.status !== 'AFC' && r.planned_end && r.planned_end < t;
-      return `<tr><td>${r.doc_number}</td><td>${r.title}</td><td>${r.project}</td><td>${fmtDate(r.planned_end)}</td><td>${statusBadge(r.status)}</td><td>${isLate ? `<span class="badge badge-late">${diffDays(t, r.planned_end)}d late</span>` : ''}</td></tr>`;
-    }).join('');
-    return `
-      <div class="owner-section">
-        <div class="owner-header">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-          ${name}
-          <span class="owner-count">${items.length} total • ${active} active${overdue ? ` • <span style="color:#dc2626">${overdue} overdue</span>` : ''}</span>
-        </div>
-        <div class="table-wrap" style="background:#fff;border-radius:0 0 8px 8px;box-shadow:0 1px 4px rgba(0,0,0,0.07)">
-          <table>
-            <thead><tr><th>Doc No</th><th>Title</th><th>Project</th><th>Due Date</th><th>Status</th><th>Alert</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+  let headerHTML = `<div class="gantt-header"><div style="flex-shrink:0;width:220px;padding:6px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">${groupBy.toUpperCase()}</div>`;
+  months.forEach(m=>{
+    const end = new Date(m.getFullYear(),m.getMonth()+1,0);
+    const from=m<minD?minD:m, to=end>maxD?maxD:end;
+    const w = Math.round(diff(to,from)+1) * (COL_W/30);
+    headerHTML += `<div class="gantt-month" style="min-width:${w}px;width:${w}px">${m.toLocaleString('default',{month:'short',year:'2-digit'})}</div>`;
+  });
+  headerHTML += '</div>';
+
+  let rowsHTML = '';
+  Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([grp, rows])=>{
+    rowsHTML += `<div style="display:flex;align-items:center;background:rgba(56,189,248,.04);border-bottom:1px solid var(--border)">
+      <div style="flex-shrink:0;width:220px;padding:8px 14px;font-size:12px;font-weight:700;color:var(--accent)">${grp} <span style="color:var(--muted);font-weight:400">(${rows.length})</span></div>
+      <div style="flex:1;height:28px;position:relative"></div>
+    </div>`;
+    rows.filter(r=>r.planned_end||r.planned_start).forEach(r=>{
+      const s = r.planned_start||r.planned_end;
+      const e = r.planned_end||r.planned_start;
+      const x = Math.max(0, diff(s,minD)) * (COL_W/30);
+      const w = Math.max(COL_W/30, diff(e,s)+1) * (COL_W/30);
+      const cls = r.status==='AFC'?'afc':r.status==='IFR'?'ifr':(r.planned_end&&r.planned_end<t?'overdue':'ns');
+      rowsHTML += `<div class="gantt-row">
+        <div class="gantt-label" title="${r.title}">${r.doc_number}: ${r.title}</div>
+        <div class="gantt-track" style="flex:1;position:relative;height:28px;padding:4px 0">
+          <div class="today-line" style="left:${todayX}px"></div>
+          <div class="gantt-bar ${cls}" style="left:${x}px;width:${w}px" onclick='openModal(${JSON.stringify(r.id)})'>${r.doc_number}</div>
         </div>
       </div>`;
+    });
+  });
+
+  document.getElementById('gantt-wrap').innerHTML = headerHTML + rowsHTML;
+}
+
+document.getElementById('gantt-group').addEventListener('change', renderGantt);
+
+// ══════════════════════════════════════════════════════════════════
+//  ISSUES & RISKS
+// ══════════════════════════════════════════════════════════════════
+function renderIssues() {
+  const t=today(), in14=new Date(t); in14.setDate(t.getDate()+14);
+  const ago21=new Date(t); ago21.setDate(t.getDate()-21);
+
+  const ov = DATA.filter(r=>r.status!=='AFC'&&r.planned_end&&r.planned_end<t).sort((a,b)=>a.planned_end-b.planned_end);
+  const risk = DATA.filter(r=>r.status!=='AFC'&&r.planned_end&&r.planned_end>=t&&r.planned_end<=in14).sort((a,b)=>a.planned_end-b.planned_end);
+  const stuckIfr = DATA.filter(r=>r.status==='IFR'&&r.ifr_date&&r.ifr_date<ago21).sort((a,b)=>a.ifr_date-b.ifr_date);
+
+  document.getElementById('ov-count').textContent=ov.length+' items';
+  document.getElementById('risk-count').textContent=risk.length+' items';
+  document.getElementById('ifr-count').textContent=stuckIfr.length+' items';
+
+  document.getElementById('ov-tbody').innerHTML = ov.length ? ov.map(r=>`
+    <tr class="row-overdue" onclick='openModal("${r.id}")' style="cursor:pointer">
+      <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
+      <td>${r.title}</td>
+      <td>${fmt(r.planned_end)}</td>
+      <td><span class="badge badge-overdue">${diff(t,r.planned_end)}d late</span></td>
+      <td>${statusBadge(r.status,r)}</td>
+      <td>${r.owner}</td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="6">No overdue items 🎉</td></tr>';
+
+  document.getElementById('risk-tbody').innerHTML = risk.length ? risk.map(r=>`
+    <tr class="row-risk" onclick='openModal("${r.id}")' style="cursor:pointer">
+      <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
+      <td>${r.title}</td>
+      <td>${fmt(r.planned_end)}</td>
+      <td><span class="badge badge-risk">${diff(r.planned_end,t)}d left</span></td>
+      <td>${statusBadge(r.status,r)}</td>
+      <td>${r.owner}</td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="6">No items at risk</td></tr>';
+
+  document.getElementById('ifr-tbody').innerHTML = stuckIfr.length ? stuckIfr.map(r=>`
+    <tr onclick='openModal("${r.id}")' style="cursor:pointer">
+      <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
+      <td>${r.title}</td>
+      <td>${fmt(r.ifr_date)}</td>
+      <td><span class="badge badge-overdue">${diff(t,r.ifr_date)}d</span></td>
+      <td>${r.owner}</td>
+      <td>${r.discipline}</td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="6">No items stuck in IFR</td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  THIS WEEK
+// ══════════════════════════════════════════════════════════════════
+function weekRange() {
+  const d=today(), dow=d.getDay();
+  const mon=new Date(d); mon.setDate(d.getDate()-((dow+6)%7));
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  return {mon,sun};
+}
+
+function renderThisWeek() {
+  const t=today(), {mon,sun}=weekRange();
+  document.getElementById('week-range').textContent=`${fmt(mon)} — ${fmt(sun)}`;
+
+  const wk = DATA.filter(r=>r.planned_end&&r.planned_end>=mon&&r.planned_end<=sun);
+  const co = DATA.filter(r=>r.status!=='AFC'&&r.planned_end&&r.planned_end<t).sort((a,b)=>a.planned_end-b.planned_end);
+
+  document.getElementById('wk-count').textContent=wk.length;
+  document.getElementById('co-count').textContent=co.length;
+
+  document.getElementById('wk-tbody').innerHTML = wk.length ? wk.map(r=>`
+    <tr onclick='openModal("${r.id}")' style="cursor:pointer">
+      <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
+      <td>${r.title}</td><td>${r.discipline}</td><td>${fmt(r.planned_end)}</td>
+      <td>${r.owner}</td><td>${statusBadge(r.status,r)}</td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="6">No deliverables due this week</td></tr>';
+
+  document.getElementById('co-tbody').innerHTML = co.length ? co.map(r=>`
+    <tr class="row-overdue" onclick='openModal("${r.id}")' style="cursor:pointer">
+      <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
+      <td>${r.title}</td><td>${r.discipline}</td><td>${fmt(r.planned_end)}</td>
+      <td>${r.owner}</td><td>${statusBadge(r.status,r)}</td>
+      <td><span class="badge badge-overdue">${diff(t,r.planned_end)}d late</span></td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="7">No overdue items 🎉</td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  RESPONSIBILITY MATRIX
+// ══════════════════════════════════════════════════════════════════
+function addPerson() {
+  const name = document.getElementById('new-person').value.trim();
+  const role = document.getElementById('new-role').value.trim();
+  if (!name) { toast('Please enter a name'); return; }
+  PEOPLE.push({id:'p'+Date.now(), name, role, assignments:[]});
+  saveData();
+  document.getElementById('new-person').value='';
+  document.getElementById('new-role').value='';
+  renderResponsibility();
+  toast(`✓ Added ${name}`);
+}
+
+function removePerson(id) {
+  PEOPLE = PEOPLE.filter(p=>p.id!==id);
+  saveData(); renderResponsibility();
+}
+
+function toggleAssignment(personId, docId) {
+  const p = PEOPLE.find(x=>x.id===personId);
+  if (!p) return;
+  const idx = p.assignments.findIndex(a=>a.docId===docId);
+  if (idx>=0) p.assignments.splice(idx,1);
+  else p.assignments.push({docId, note:''});
+  saveData(); renderResponsibility();
+}
+
+function renderResponsibility() {
+  const t = today();
+  const search = (document.getElementById('resp-search')?.value||'').toLowerCase();
+  const container = document.getElementById('resp-matrix');
+
+  // Merge owners from data into people list (auto-populate)
+  const knownNames = new Set(PEOPLE.map(p=>p.name.toLowerCase()));
+  DATA.forEach(r=>{
+    if (r.owner&&r.owner!=='—'&&!knownNames.has(r.owner.toLowerCase())) {
+      PEOPLE.push({id:'p'+Date.now()+Math.random(), name:r.owner, role:'', assignments:[]});
+      knownNames.add(r.owner.toLowerCase());
+    }
+  });
+
+  // Auto-fill assignments from data owner field
+  DATA.forEach(r=>{
+    if (!r.owner||r.owner==='—') return;
+    const person = PEOPLE.find(p=>p.name.toLowerCase()===r.owner.toLowerCase());
+    if (!person) return;
+    if (!person.assignments.find(a=>a.docId===r.id)) {
+      person.assignments.push({docId:r.id, note:''});
+    }
+  });
+
+  if (!PEOPLE.length) {
+    container.innerHTML=`<div style="padding:60px;text-align:center;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">👥</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">No people yet</div>
+      <div>Add people above or upload an MDR with an Owner/Responsible column.</div>
+    </div>`; return;
+  }
+
+  const filteredData = search ? DATA.filter(r=>r.title.toLowerCase().includes(search)||r.doc_number.toLowerCase().includes(search)) : DATA;
+
+  container.innerHTML = PEOPLE.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
+    const myDocs = filteredData.filter(r=>p.assignments.find(a=>a.docId===r.id));
+    const ov = myDocs.filter(r=>r.status!=='AFC'&&r.planned_end&&r.planned_end<t).length;
+    const total = myDocs.length;
+    const done = myDocs.filter(r=>r.status==='AFC').length;
+
+    const rows = myDocs.sort((a,b)=>(a.planned_end||new Date(9e15))-(b.planned_end||new Date(9e15))).map(r=>{
+      const isLate = r.status!=='AFC'&&r.planned_end&&r.planned_end<t;
+      return `<tr onclick='openModal("${r.id}")' style="cursor:pointer" class="${isLate?'row-overdue':''}">
+        <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
+        <td>${r.title}</td>
+        <td>${r.project}</td>
+        <td>${r.discipline}</td>
+        <td>${fmt(r.planned_end)}</td>
+        <td>${statusBadge(r.status,r)}</td>
+        <td>${isLate?`<span class="badge badge-overdue">${diff(t,r.planned_end)}d late</span>`:''}</td>
+        <td><button class="del-btn" onclick='event.stopPropagation();toggleAssignment("${p.id}","${r.id}")'>−</button></td>
+      </tr>`;
+    }).join('');
+
+    const pct = total?Math.round(done/total*100):0;
+
+    return `<div style="margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
+        ${avatar(p.name)}
+        <div style="flex:1">
+          <div style="font-weight:700;color:var(--text);font-size:14px">${p.name}</div>
+          <div style="font-size:12px;color:var(--muted)">${p.role||'—'} &nbsp;·&nbsp; ${total} tasks &nbsp;·&nbsp; ${done} done &nbsp;·&nbsp; ${pct}%${ov?` &nbsp;·&nbsp; <span style="color:var(--red);font-weight:700">${ov} overdue</span>`:''}</div>
+          <div class="prog-track" style="margin-top:6px;max-width:300px"><div class="prog-fill" style="width:${pct}%"></div></div>
+        </div>
+        <button class="del-btn" onclick='removePerson("${p.id}")'>Remove</button>
+      </div>
+      ${total ? `<div class="tbl-wrap"><table>
+        <thead><tr><th>Doc No</th><th>Title</th><th>Project</th><th>Discipline</th><th>Due Date</th><th>Status</th><th>Alert</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : `<div style="padding:16px 20px;font-size:13px;color:var(--muted)">No deliverables assigned${search?' matching search':''}.</div>`}
+    </div>`;
   }).join('');
+
+  saveData();
 }
 
-// ─── All Deliverables ─────────────────────────────────────────────────────────
-function populateFilters() {
-  const projects = [...new Set(allData.map(r => r.project))].filter(Boolean).sort();
-  const disciplines = [...new Set(allData.map(r => r.discipline))].filter(Boolean).sort();
-
-  const fp = document.getElementById('filter-project');
-  fp.innerHTML = '<option value="">All Projects</option>' + projects.map(p => `<option>${p}</option>`).join('');
-  const fd = document.getElementById('filter-discipline');
-  fd.innerHTML = '<option value="">All Disciplines</option>' + disciplines.map(d => `<option>${d}</option>`).join('');
+// ══════════════════════════════════════════════════════════════════
+//  ALL DELIVERABLES
+// ══════════════════════════════════════════════════════════════════
+function populateAllFilters() {
+  const projs = [...new Set(DATA.map(r=>r.project))].filter(Boolean).sort();
+  const discs = [...new Set(DATA.map(r=>r.discipline))].filter(Boolean).sort();
+  const owners= [...new Set(DATA.map(r=>r.owner))].filter(x=>x&&x!=='—').sort();
+  document.getElementById('all-project').innerHTML='<option value="">All Projects</option>'+projs.map(p=>`<option>${p}</option>`).join('');
+  document.getElementById('all-disc').innerHTML   ='<option value="">All Disciplines</option>'+discs.map(d=>`<option>${d}</option>`).join('');
+  document.getElementById('all-owner').innerHTML  ='<option value="">All Owners</option>'+owners.map(o=>`<option>${o}</option>`).join('');
 }
 
-function getFilteredData() {
-  const search = document.getElementById('search-box').value.toLowerCase();
-  const status = document.getElementById('filter-status').value;
-  const project = document.getElementById('filter-project').value;
-  const discipline = document.getElementById('filter-discipline').value;
+function renderAll() {
+  const t=today();
+  const search   = document.getElementById('all-search').value.toLowerCase();
+  const status   = document.getElementById('all-status').value;
+  const project  = document.getElementById('all-project').value;
+  const disc     = document.getElementById('all-disc').value;
+  const owner    = document.getElementById('all-owner').value;
 
-  return allData.filter(r => {
-    if (search && !r.title.toLowerCase().includes(search) && !r.doc_number.toLowerCase().includes(search)) return false;
-    if (status && r.status !== status) return false;
-    if (project && r.project !== project) return false;
-    if (discipline && r.discipline !== discipline) return false;
+  let rows = DATA.filter(r=>{
+    if (search&&!r.title.toLowerCase().includes(search)&&!r.doc_number.toLowerCase().includes(search)) return false;
+    if (status==='OVERDUE') { if (r.status==='AFC'||!r.planned_end||r.planned_end>=t) return false; }
+    else if (status&&r.status!==status) return false;
+    if (project&&r.project!==project) return false;
+    if (disc&&r.discipline!==disc) return false;
+    if (owner&&r.owner!==owner) return false;
     return true;
   });
-}
 
-function renderAllTable() {
-  let data = getFilteredData();
   if (sortState.col) {
-    data = [...data].sort((a, b) => {
-      let av = a[sortState.col], bv = b[sortState.col];
-      if (av instanceof Date) av = av ? av.getTime() : 0;
-      if (bv instanceof Date) bv = bv ? bv.getTime() : 0;
-      if (av == null) av = '';
-      if (bv == null) bv = '';
-      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * sortState.dir;
+    rows = [...rows].sort((a,b)=>{
+      let av=a[sortState.col], bv=b[sortState.col];
+      if (av instanceof Date) av=av?av.getTime():0;
+      if (bv instanceof Date) bv=bv?bv.getTime():0;
+      av=av??''; bv=bv??'';
+      return String(av).localeCompare(String(bv),undefined,{numeric:true})*sortState.dir;
     });
   }
 
-  const tbody = document.getElementById('all-table-body');
-  tbody.innerHTML = data.length ? data.map(r =>
-    `<tr>
-      <td>${r.doc_number}</td>
+  document.getElementById('all-count').textContent = `${rows.length} of ${DATA.length}`;
+  document.getElementById('all-tbody').innerHTML = rows.length ? rows.map(r=>{
+    const isLate=r.status!=='AFC'&&r.planned_end&&r.planned_end<t;
+    return `<tr class="${isLate?'row-overdue':''}" onclick='openModal("${r.id}")' style="cursor:pointer">
+      <td><code style="font-size:11px;color:var(--accent)">${r.doc_number}</code></td>
       <td>${r.title}</td>
       <td>${r.project}</td>
       <td>${r.discipline}</td>
-      <td>${statusBadge(r.status)}</td>
-      <td>${fmtDate(r.planned_end)}</td>
-      <td>${fmtDate(r.ifr_date)}</td>
-      <td>${fmtDate(r.afc_date)}</td>
+      <td>${statusBadge(r.status,r)}</td>
+      <td>${fmt(r.planned_start)}</td>
+      <td>${fmt(r.planned_end)}</td>
+      <td>${fmt(r.ifr_date)}</td>
+      <td>${fmt(r.afc_date)}</td>
       <td>${r.owner}</td>
-    </tr>`
-  ).join('') : '<tr><td colspan="9" class="empty-state">No deliverables match the filters</td></tr>';
+    </tr>`;
+  }).join('') : '<tr class="empty-row"><td colspan="10">No deliverables match the filters</td></tr>';
 }
 
-// Sort headers
-document.querySelectorAll('#all-table th.sortable').forEach(th => {
-  th.addEventListener('click', () => {
-    const col = th.dataset.col;
-    if (sortState.col === col) sortState.dir *= -1;
-    else { sortState.col = col; sortState.dir = 1; }
-    document.querySelectorAll('#all-table th').forEach(h => h.classList.remove('sort-asc','sort-desc'));
-    th.classList.add(sortState.dir === 1 ? 'sort-asc' : 'sort-desc');
-    renderAllTable();
+document.querySelectorAll('#all-table th.sort').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.col;
+    if (sortState.col===col) sortState.dir*=-1;
+    else {sortState.col=col; sortState.dir=1;}
+    document.querySelectorAll('#all-table th').forEach(h=>h.classList.remove('sort-asc','sort-desc'));
+    th.classList.add(sortState.dir===1?'sort-asc':'sort-desc');
+    renderAll();
   });
 });
 
-// Filter events
-['search-box','filter-status','filter-project','filter-discipline'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderAllTable);
+// ══════════════════════════════════════════════════════════════════
+//  DETAIL MODAL
+// ══════════════════════════════════════════════════════════════════
+function openModal(id) {
+  const r = DATA.find(x=>x.id===id); if (!r) return;
+  const t=today();
+  const isLate=r.status!=='AFC'&&r.planned_end&&r.planned_end<t;
+  document.getElementById('modal-title').textContent = r.doc_number+' — '+r.title;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-item"><label>Status</label><div class="val">${statusBadge(r.status,r)}</div></div>
+      <div class="detail-item"><label>Owner</label><div class="val">${r.owner}</div></div>
+      <div class="detail-item"><label>Project</label><div class="val">${r.project}</div></div>
+      <div class="detail-item"><label>Discipline</label><div class="val">${r.discipline}</div></div>
+      <div class="detail-item"><label>Planned Start</label><div class="val">${fmt(r.planned_start)}</div></div>
+      <div class="detail-item"><label>Planned End / Due</label><div class="val" style="color:${isLate?'var(--red)':'var(--text)'}">${fmt(r.planned_end)}${isLate?` <span class="badge badge-overdue" style="margin-left:6px">${diff(t,r.planned_end)}d late</span>`:''}</div></div>
+      <div class="detail-item"><label>IFR Date</label><div class="val">${fmt(r.ifr_date)}</div></div>
+      <div class="detail-item"><label>AFC Date</label><div class="val">${fmt(r.afc_date)}</div></div>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (!e || e.target===document.getElementById('modal-overlay') || e.currentTarget===document.getElementById('modal-close')) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════════════════════════════
+function exportCSV() {
+  if (!DATA.length) { toast('No data to export'); return; }
+  const cols=['doc_number','title','project','discipline','status','planned_start','planned_end','ifr_date','afc_date','owner'];
+  const header=cols.join(',');
+  const rows=DATA.map(r=>cols.map(c=>{
+    let v=r[c];
+    if (v instanceof Date) v=fmt(v);
+    return `"${String(v??'').replace(/"/g,'""')}"`;
+  }).join(','));
+  const blob=new Blob([header+'\n'+rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='MDR_Export_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('✓ Exported '+DATA.length+' rows');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ══════════════════════════════════════════════════════════════════
+document.getElementById('file-input').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(f) parseFile(f);
+  e.target.value='';
 });
 
-// ─── Render All ───────────────────────────────────────────────────────────────
-function renderAll() {
-  document.getElementById('upload-area').style.display = 'none';
-  document.getElementById('tab-nav').style.visibility = 'visible';
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)parseFile(f)});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f&&/\.(xlsx|xls|csv)$/.test(f.name)) parseFile(f);
+});
+
+// ══════════════════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════════════════
+function boot() {
+  document.getElementById('upload-screen').style.display='none';
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('p-dashboard').classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-tab="dashboard"]').classList.add('active');
   renderDashboard();
-  renderThisWeek();
-  renderIssues();
-  renderResponsibility();
-  populateFilters();
-  renderAllTable();
 }
 
-// ─── File handling ────────────────────────────────────────────────────────────
-function handleFile(file) {
-  if (!file) return;
-  if (typeof XLSX === 'undefined') {
-    showToast('SheetJS not loaded — check your internet connection');
-    return;
-  }
-  parseExcel(file);
+loadData();
+if (DATA.length) {
+  document.getElementById('header-file').textContent='📄 Restored from last session';
+  boot();
+  toast('✓ Restored '+DATA.length+' deliverables from last session');
 }
-
-document.getElementById('file-input').addEventListener('change', e => {
-  handleFile(e.target.files[0]);
-  e.target.value = '';
-});
-
-const dropZone = document.getElementById('drop-zone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  handleFile(e.dataTransfer.files[0]);
-});
-
-// Also allow drop on the whole page
-document.addEventListener('dragover', e => e.preventDefault());
-document.addEventListener('drop', e => {
-  e.preventDefault();
-  const file = e.dataTransfer.files[0];
-  if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
-    handleFile(file);
-  }
-});
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-(function init() {
-  document.getElementById('tab-nav').style.visibility = 'hidden';
-  if (loadFromStorage()) {
-    renderAll();
-    switchTab('dashboard');
-    showToast('Restored data from last session');
-  }
-})();
 </script>
 </body>
 </html>
