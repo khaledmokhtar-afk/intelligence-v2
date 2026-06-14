@@ -8,3 +8,4 @@ data/mdr.db-wal
 data/app_config.json
 .env
 *.log
+.next

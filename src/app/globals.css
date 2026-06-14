@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #08080F;
+  --color-card: #0F0F1A;
+  --color-border: rgba(0,200,232,0.15);
+  --color-cyan: #00C8E8;
+  --color-green: #00E87A;
+  --color-red: #E83E3E;
+  --color-text-primary: #F0F0F5;
+  --color-text-muted: #8888A0;
+  --color-text-dim: #555566;
+
+  --font-display: system-ui, sans-serif;
+  --font-sans: system-ui, sans-serif;
+
+  --shadow-glow: 0 0 30px rgba(0,200,232,0.2);
+  --shadow-glow-sm: 0 0 12px rgba(0,200,232,0.15);
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .card {
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    background-color: var(--color-cyan);
+    color: var(--color-background);
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .btn-primary:hover { opacity: 0.9; box-shadow: var(--shadow-glow-sm); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-card);
+    color: var(--color-text-primary);
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { border-color: rgba(0,200,232,0.4); color: var(--color-cyan); }
+  .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .input {
+    width: 100%;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    padding: 0.625rem 1rem;
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .input::placeholder { color: var(--color-text-dim); }
+  .input:focus { border-color: rgba(0,200,232,0.5); }
+}

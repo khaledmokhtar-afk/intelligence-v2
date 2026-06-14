@@ -7,29 +7,95 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── NextAuth required models ──────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── Application models ────────────────────────────────────────────────────────
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  jobs      Job[]
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  credits       Int       @default(3)
+  role          String    @default("USER")
+  createdAt     DateTime  @default(now())
+  accounts      Account[]
+  sessions      Session[]
+  jobs          Job[]
+  payments      Payment[]
 }
 
 model Job {
-  id           String    @id @default(cuid())
-  userId       String
-  user         User      @relation(fields: [userId], references: [id])
-  status       String    @default("QUEUED")
-  stage        Int       @default(0)
-  drawingType  String?
-  inputKey     String
-  parsedData   Json?
-  geometryData Json?
-  outputKeys   Json?
-  errorMsg     String?
-  processingMs Int?
-  createdAt    DateTime  @default(now())
-  completedAt  DateTime?
+  id              String    @id @default(cuid())
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  sessionId       String?
+  status          String    @default("QUEUED")
+  stage           Int       @default(0)
+  drawingType     String?
+  inputKey        String
+  inputName       String?
+  inputSizeBytes  Int?
+  pagesCount      Int       @default(1)
+  creditsUsed     Int       @default(0)
+  parsedData      Json?
+  geometryData    Json?
+  outputKeys      Json?
+  errorMsg        String?
+  processingMs    Int?
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model Payment {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  stripeSessionId  String   @unique
+  stripePriceId    String
+  creditsPurchased Int
+  amountCents      Int
+  currency         String   @default("usd")
+  status           String   @default("pending")
+  createdAt        DateTime @default(now())
 
   @@index([userId])
 }
