@@ -10,8 +10,8 @@
     "legacy:client": "cd client && npm run dev",
     "build": "next build",
     "start": "next start",
-    "worker": "npx tsx --tsconfig tsconfig.json src/workers/start.ts",
-    "worker:dev": "npx tsx watch --tsconfig tsconfig.json src/workers/start.ts"
+    "worker": "npx tsx src/workers/start.ts",
+    "worker:dev": "npx tsx watch src/workers/start.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

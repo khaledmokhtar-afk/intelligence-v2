@@ -1,11 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { anthropic }    from '@/lib/anthropic'
+import { anthropic } from '@/lib/anthropic'
 import { s3, uploadToS3 } from '@/lib/s3'
 import { GetObjectCommand } from '@aws-sdk/client-s3'
-import { fromBuffer }   from 'pdf2pic'
+import { fromBuffer } from 'pdf2pic'
 import type { ParsedGeometry } from '@/types'
 
-export async function parsePDF(jobId: string, inputKey: string): Promise<ParsedGeometry> {
+export async function parsePDF(
+  jobId: string,
+  inputKey: string,
+  pagesCount?: number
+): Promise<ParsedGeometry> {
   // 1. Download PDF from R2
   const response = await s3.send(new GetObjectCommand({
     Bucket: process.env.S3_BUCKET!,
@@ -13,18 +17,18 @@ export async function parsePDF(jobId: string, inputKey: string): Promise<ParsedG
   }))
   const pdfBuffer = Buffer.from(await response.Body!.transformToByteArray())
 
-  // 2. Convert PDF pages to images
+  // 2. Convert PDF pages to images at 200 DPI
   const converter = fromBuffer(pdfBuffer, {
     density: 200,
     format:  'png',
-    width:   2000,
-    height:  2000,
+    width:   3000,
+    height:  3000,
   })
 
-  const pageCount  = Math.min(5, response.Metadata?.pages ? parseInt(response.Metadata.pages) : 1)
+  const pageLimit  = Math.min(pagesCount ?? 1, 6)
   const pageImages: string[] = []
 
-  for (let page = 1; page <= pageCount; page++) {
+  for (let page = 1; page <= pageLimit; page++) {
     const result = await converter(page, { responseType: 'buffer' })
     if (result.buffer) {
       const base64 = result.buffer.toString('base64')
@@ -42,72 +46,165 @@ export async function parsePDF(jobId: string, inputKey: string): Promise<ParsedG
   }
 
   // 3. Send to Claude Vision
-  const PARSE_SYSTEM_PROMPT = `You are an expert engineering drawing parser with deep knowledge
-of architectural, mechanical, structural, and civil engineering drawings.
+  const PARSE_SYSTEM_PROMPT = `You are an expert architectural drawing parser specialising in
+professional interior fit-out drawings produced by Australian and Middle-Eastern practices
+(Bluehaus Group style). You have deep knowledge of AS1100/ISO architectural drawing conventions.
 
-Your task is to analyze 2D engineering drawings from PDF pages and extract all geometric
-and semantic information needed to reconstruct the drawing in 3D.
+CRITICAL: Return ONLY valid JSON with no markdown fences, no prose, no code blocks. Raw JSON only.`
 
-CRITICAL: You must return ONLY valid JSON. No explanations, no markdown, no code blocks.
-Just raw JSON matching the schema exactly.`
+  const PARSE_USER_PROMPT = `Analyse this professional architectural interior fit-out drawing
+(General Arrangement Plan, 1:100 scale, dimensions in millimetres).
 
-  const PARSE_USER_PROMPT = `Analyze this engineering drawing and extract all geometric elements.
+DRAWING CONVENTIONS TO RECOGNISE:
+• Scale: 1:100 unless annotated otherwise. Coordinates in mm.
+• Wall types by hatch pattern:
+  - Heavy solid fill / cross-hatch = concrete core / base-build structural wall (200–350 mm thick)
+  - Diagonal hatch = joinery / millwork (100–150 mm)
+  - Solid outline, no hatch = fit-out partition (100–150 mm, demountable or fixed)
+  - Dashed outline = demountable / NIC partition
+  - Curtain wall / glazing line = thin single line or double line with glazing symbol
+• Structural column grid:
+  - Horizontal grid lines labelled a1, a2 … a13 (left→right)
+  - Vertical grid lines labelled aA, aB … aG (bottom→top)
+  - Columns sit at grid intersections, typically 400×400 mm RC
+• Room tags: name on top line, number below in format 114-XXX (level 14)
+• Equipment codes in pantry / kitchen areas:
+  CM=Coffee Machine, UCF=Undercounter Fridge, DW=Dishwasher, ZT=Zip Tap,
+  REF=Refrigerator, MV=Microwave, WD=Water Dispenser, CP=Copy/Printer,
+  LED=LED Screen, NS=Nespresso, SH=Shredder, ST=Sterilizer, J=Juicer, K=Kettle, T=Toaster, S=Sink
+• Phone booths / SONG pods: small enclosed boxes 1000×1000 to 1200×2000 mm, labelled "PHONE BOOTH" or "SONG"
+• SCREEN annotations mark wall-mounted or free-standing display screens
+• Title block in bottom-right corner contains project name, drawing number, scale, revision, date
 
-Return this exact JSON structure (no other text):
+OUTPUT — return this exact JSON (populate every array you can identify, use [] if none visible):
 {
-  "drawingType": "architectural" | "mechanical" | "structural" | "other",
-  "scale": "1:50" | "1:100" | null,
-  "units": "mm" | "cm" | "m" | "inches" | "feet",
-  "viewType": "plan" | "elevation" | "section" | "isometric" | "detail",
-  "elements": [
+  "drawingType": "interior-fitout",
+  "subType": "general-arrangement",
+  "scale": "1:100",
+  "units": "mm",
+  "viewType": "plan",
+  "totalWidth": <overall drawing width in mm, e.g. 60000>,
+  "totalDepth": <overall drawing depth in mm, e.g. 34500>,
+  "ceilingHeight": 3000,
+  "structuralGrid": {
+    "horizontal": [
+      { "id": "a1", "x": <x coordinate in mm> },
+      { "id": "a2", "x": <x coordinate in mm> }
+    ],
+    "vertical": [
+      { "id": "aA", "y": <y coordinate in mm> },
+      { "id": "aB", "y": <y coordinate in mm> }
+    ],
+    "columnSize": 400
+  },
+  "walls": [
     {
-      "type": "wall" | "line" | "arc" | "circle" | "opening" | "column" | "beam" | "slab" | "stair",
-      "coords": [x1, y1, x2, y2],
-      "properties": {
-        "thickness": 200,
-        "lineWeight": "heavy" | "medium" | "light",
-        "lineType": "solid" | "dashed" | "dotted",
-        "layer": "WALLS" | "DOORS" | "WINDOWS" | "DIMS" | "TEXT" | "STRUCTURAL"
-      }
+      "id": "wall_001",
+      "start": [<x1 mm>, <y1 mm>],
+      "end":   [<x2 mm>, <y2 mm>],
+      "thickness": <mm, e.g. 200>,
+      "wallType": "concrete-core" | "joinery" | "fitout-partition" | "demountable" | "glazing-frame",
+      "isStructural": <true if concrete core or base-build>,
+      "isFitout": <true if interior fit-out partition>,
+      "layer": "A-WALL-FULL" | "A-WALL-PART" | "A-WALL-DEMO"
+    }
+  ],
+  "glazing": [
+    {
+      "id": "glaz_001",
+      "start": [<x1 mm>, <y1 mm>],
+      "end":   [<x2 mm>, <y2 mm>],
+      "thickness": 50,
+      "glazingType": "curtain-wall" | "internal-glass" | "shopfront",
+      "layer": "A-GLAZ"
+    }
+  ],
+  "doors": [
+    {
+      "id": "door_001",
+      "position": [<x mm>, <y mm>],
+      "width": 900,
+      "height": 2100,
+      "swingAngle": 90,
+      "wallId": "wall_001",
+      "roomFrom": "114-001",
+      "roomTo": "114-002"
+    }
+  ],
+  "rooms": [
+    {
+      "id": "r_001",
+      "name": "RECEPTION",
+      "number": "114-001",
+      "centroid": [<cx mm>, <cy mm>],
+      "boundary": [[<x mm>,<y mm>], [<x mm>,<y mm>], [<x mm>,<y mm>], [<x mm>,<y mm>]],
+      "area": <sq m as float>,
+      "roomType": "reception" | "meeting" | "office" | "amenity" | "services" | "circulation" | "open-plan" | "wellness" | "focus" | "breakout"
+    }
+  ],
+  "furniture": [
+    {
+      "id": "furn_001",
+      "type": "desk" | "chair" | "table" | "locker" | "cabinet" | "credenza" | "sofa" | "screen" | "other",
+      "label": <text label if any>,
+      "position": [<x mm>, <y mm>],
+      "width": <mm>,
+      "depth": <mm>,
+      "height": <mm, estimate: desk=750, locker=1800, full-height-cabinet=2400, credenza=750>,
+      "rotation": <degrees 0–359>
+    }
+  ],
+  "equipment": [
+    {
+      "id": "eq_001",
+      "code": "CM" | "UCF" | "DW" | "ZT" | "REF" | "MV" | "WD" | "CP" | "LED" | "NS" | "SH" | "ST" | "J" | "K" | "T" | "S",
+      "fullName": "Coffee Machine",
+      "position": [<x mm>, <y mm>],
+      "roomId": "r_001"
     }
   ],
   "dimensions": [
     {
-      "value": 3500,
+      "value": 6000,
       "unit": "mm",
-      "from": [x1, y1],
-      "to": [x2, y2],
-      "label": "3500"
+      "from": [<x1 mm>, <y1 mm>],
+      "to":   [<x2 mm>, <y2 mm>],
+      "label": "6000",
+      "axis": "horizontal" | "vertical"
     }
   ],
   "annotations": [
     {
-      "text": "BEDROOM 1",
-      "position": [x, y],
+      "text": "SCREEN",
+      "position": [<x mm>, <y mm>],
       "fontSize": "large" | "medium" | "small"
     }
   ],
-  "roomLabels": [
+  "coreAreas": [
     {
-      "name": "Living Room",
-      "center": [x, y],
-      "area": 25.5
+      "id": "core_001",
+      "name": "LIFT CORE",
+      "boundary": [[<x mm>,<y mm>], [<x mm>,<y mm>], [<x mm>,<y mm>], [<x mm>,<y mm>]],
+      "coreType": "lift" | "stair" | "services" | "toilets"
     }
   ],
   "titleBlock": {
-    "projectName": "Residential House",
-    "drawingNumber": "A-101",
+    "projectName": <string or null>,
+    "clientName": <string or null>,
+    "drawingTitle": <string or null>,
+    "drawingNumber": <string or null>,
     "scale": "1:100",
-    "date": "2024-01-15"
+    "revision": <string or null>,
+    "date": <string or null>,
+    "drawnBy": <string or null>,
+    "checkedBy": <string or null>
   }
 }
 
-Important notes:
-- Coordinates should be in drawing units (not pixels)
-- Wall thickness is typically 200-300mm for external, 100-150mm for internal
-- Openings (doors/windows) interrupt wall segments
-- Use your engineering knowledge to infer missing information
-- If scale is visible, use it to normalize coordinates to real-world millimeters`
+COORDINATE SYSTEM: Origin [0,0] at bottom-left of drawing extents.
+X increases right, Y increases up. All values in millimetres.
+Use the visible dimension strings (6000, 3000, 7500 etc.) to calibrate coordinates accurately.
+Where exact coordinates are uncertain, give best estimate based on scale and visible dimensions.`
 
   const content: (Anthropic.ImageBlockParam | Anthropic.TextBlockParam)[] = []
 
@@ -120,21 +217,17 @@ Important notes:
         data:       pageImages[i],
       },
     })
-    content.push({
-      type: 'text',
-      text: `Page ${i + 1} of ${pageImages.length}`,
-    })
+    if (pageImages.length > 1) {
+      content.push({ type: 'text', text: `Page ${i + 1} of ${pageImages.length}` })
+    }
   }
   content.push({ type: 'text', text: PARSE_USER_PROMPT })
 
   const message = await anthropic.messages.create({
     model:      'claude-sonnet-4-6',
-    max_tokens: 8192,
+    max_tokens: 16000,
     system:     PARSE_SYSTEM_PROMPT,
-    messages: [{
-      role:    'user',
-      content: content,
-    }],
+    messages: [{ role: 'user', content }],
   })
 
   const responseText = message.content
@@ -152,9 +245,10 @@ Important notes:
       'application/json'
     )
 
+    console.log(`[Stage1] Parsed: ${parsed.rooms?.length ?? 0} rooms, ${parsed.walls?.length ?? 0} walls`)
     return parsed
   } catch (err) {
-    console.error('Failed to parse Claude response:', responseText.slice(0, 500))
+    console.error('[Stage1] Failed to parse Claude response:', responseText.slice(0, 500))
     throw new Error('Claude returned invalid JSON in Stage 1')
   }
 }
