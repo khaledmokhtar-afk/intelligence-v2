@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  jobs      Job[]
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  status       String    @default("QUEUED")
+  stage        Int       @default(0)
+  drawingType  String?
+  inputKey     String
+  parsedData   Json?
+  geometryData Json?
+  outputKeys   Json?
+  errorMsg     String?
+  processingMs Int?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@index([userId])
+}
