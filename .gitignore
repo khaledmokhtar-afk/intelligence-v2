@@ -9,3 +9,4 @@ data/app_config.json
 .env
 *.log
 .next
+tsconfig.tsbuildinfo
