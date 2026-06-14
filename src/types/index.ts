@@ -1,3 +1,5 @@
+export type JobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETE' | 'FAILED' | 'EXPIRED'
+
 export interface ParsedGeometry {
   drawingType: string
   subType?: string

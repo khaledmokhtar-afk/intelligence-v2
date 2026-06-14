@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 export const s3 = new S3Client({
@@ -22,6 +22,10 @@ export async function uploadToS3(
     ContentType: contentType,
   }))
   return key
+}
+
+export async function deleteFromS3(key: string): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: key }))
 }
 
 export async function getSignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
