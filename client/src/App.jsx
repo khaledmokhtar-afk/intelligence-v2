@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, AlertTriangle, Users, List, Upload, X, CheckCircle, AlertCircle, Settings, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Calendar, AlertTriangle, Users, List, Upload, X, CheckCircle, AlertCircle, Settings, Eye, EyeOff, Trash2, Box } from 'lucide-react';
 import axios from 'axios';
 import Dashboard from './views/Dashboard';
 import ThisWeek from './views/ThisWeek';
 import IssuesRisks from './views/IssuesRisks';
 import ResponsibilityMatrix from './views/ResponsibilityMatrix';
 import AllDeliverables from './views/AllDeliverables';
+import CADConverter from './views/CADConverter';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const NAV = [
   { to: '/issues', label: 'Issues & Risks', icon: AlertTriangle },
   { to: '/matrix', label: 'Responsibility', icon: Users },
   { to: '/deliverables', label: 'All Deliverables', icon: List },
+  { to: '/cad', label: '2D→3D CAD', icon: Box },
 ];
 
 function UploadModal({ onClose, onSuccess }) {
@@ -262,6 +264,7 @@ export default function App() {
           <Route path="/issues" element={<IssuesRisks/>}/>
           <Route path="/matrix" element={<ResponsibilityMatrix/>}/>
           <Route path="/deliverables" element={<AllDeliverables/>}/>
+          <Route path="/cad" element={<CADConverter/>}/>
         </Routes>
       </main>
 

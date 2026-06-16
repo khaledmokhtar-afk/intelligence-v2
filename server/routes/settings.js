@@ -47,4 +47,9 @@ router.delete('/apikey', (req, res) => {
   res.json({ success: true });
 });
 
-module.exports = { router, loadConfig };
+function getApiKey() {
+  const cfg = loadConfig();
+  return cfg.anthropicApiKey || process.env.ANTHROPIC_API_KEY || null;
+}
+
+module.exports = { router, loadConfig, getApiKey };
